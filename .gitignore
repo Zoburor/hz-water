@@ -30,3 +30,6 @@ Thumbs.db
 *.log
 *.tmp
 ~$*
+
+# 允许 docs 下的通用安装包进库(jsDelivr / raw 两个更新通道要读它)
+!docs/hz-water.apk
