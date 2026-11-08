@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 冷启动底色: 品牌竖向渐变, 与页面 #boot 层同色, 首帧不是黑屏 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="270"
+                android:startColor="#14477F"
+                android:centerColor="#0D2B54"
+                android:endColor="#081726"
+                android:type="linear" />
+        </shape>
+    </item>
+</layer-list>

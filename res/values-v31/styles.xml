@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ : 关闭系统默认闪屏动画的纯色底, 用整屏品牌画面 -->
+    <style name="AppTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_bg</item>
+        <item name="android:statusBarColor">#0D2B54</item>
+        <item name="android:navigationBarColor">#081726</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

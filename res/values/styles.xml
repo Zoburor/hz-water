@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 无 ActionBar; 冷启动第一帧用品牌渐变而不是纯黑 -->
+    <style name="AppTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@drawable/splash_bg</item>
+        <item name="android:statusBarColor">#081726</item>
+        <item name="android:navigationBarColor">#081726</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowDisablePreview">false</item>
+    </style>
+</resources>

@@ -1,0 +1,32 @@
+# 构建产物
+build/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# 签名: 绝不入库
+keystore.jks
+*.jks
+*.keystore
+*.p12
+
+# 第三方 SDK 与依赖(体积大, 需自行准备)
+libs/
+
+# 编辑器与系统
+.idea/
+.gradle/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# 临时文件与备份
+*.bak
+*.bak-*
+*.orig
+*.rej
+*.log
+*.tmp
+~$*
