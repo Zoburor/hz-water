@@ -793,16 +793,14 @@ function notifyAsk(cb){
   }catch(e){ fin(Notification.permission || 'default'); }
 }
 
-/* 从系统设置页返回时, 把挂起的"已下载包"续上安装. 只对原生有效. */
+/* 从安装器或系统设置页回来时: **不自动拉安装器, 也不重新下载**.
+   之前这里会自动调 installReady, 用户取消安装回到应用后安装器又弹一次,
+   看起来就像"又重新下载了". 现在只核对缓存并把按钮变成"已下好 点击安装". */
 if(HASNATIVE){
   document.addEventListener('visibilitychange', function(){
     if(document.visibilityState !== 'visible') return;
-    var rid = window.__hzPendingInstall;
-    if(!rid) return;
     window.__hzPendingInstall = null;
-    if(!window.HzNative.installReady) return;
-    try{ window.HzNative.installReady(rid); }
-    catch(e){ log('续装失败: ' + e.message, 'w'); }
+    try{ updSyncCached(); }catch(e){}
   });
 }
 
@@ -5151,7 +5149,7 @@ function askPerm(kind){
 /* ============================================================
    6.6 更新: 镜像优先, 直连兜底
    ============================================================ */
-var APP_VER = '1.1.1';
+var APP_VER = '1.1.2';
 var VER_KEY = 'hz_ver_v10';
 /* GitHub 仓库(owner/repo). 更新源与"源码仓库"都靠它拼地址.
    发版时把按架构打的包传到 Release, 名字要对上 updApkName() 的返回值. */
@@ -5188,28 +5186,16 @@ function updApkName(){
   return '';
 }
 function buildSources(){
-  var pick = updApkName();
-  var out = [];
-  var bases = [
-    ['ghproxy', 'ghfast 镜像',   'https://ghfast.top/https://github.com/'],
-    ['ghp2',    'gh-proxy 镜像', 'https://gh-proxy.com/https://github.com/'],
-    ['gh',      'GitHub 直连',   'https://github.com/']
+  /* 四个源**并行竞速**: 点下载就四路一起开, 谁先下完并通过校验谁赢, 其余源立刻被淘汰.
+     不再先串行探测: 探测阶段每个源最长要等 21 秒, 6 个源串下来用户要盯着看半分钟.
+     架构专用包与通用包字节相同(APK 里没有 lib/), 所以不再按架构分两轮;
+     直连 github.com 在国内基本不通, 不占竞速名额. */
+  return [
+    { id:'ghproxy',  name:'ghfast 镜像',  url:'https://ghfast.top/https://github.com/' + REPO + '/releases/latest/download/hz-water.apk' },
+    { id:'ghp2',     name:'gh-proxy 镜像', url:'https://gh-proxy.com/https://github.com/' + REPO + '/releases/latest/download/hz-water.apk' },
+    { id:'jsdelivr', name:'jsDelivr CDN',        url:'https://cdn.jsdelivr.net/gh/' + REPO + '@main/docs/hz-water.apk' },
+    { id:'raw',      name:'GitHub raw',          url:'https://raw.githubusercontent.com/' + REPO + '/main/docs/hz-water.apk' }
   ];
-  /* 架构专用包排前面: 有就用, 探测不通再走后面的通用包 */
-  if(pick){
-    bases.forEach(function(b){
-      out.push({ id: b[0] + '-abi',
-        name: b[1] + ' / ' + pick.replace('hz-water-', '').replace('.apk', ''),
-        url: b[2] + REPO + '/releases/latest/download/' + pick });
-    });
-  }
-  bases.forEach(function(b){
-    out.push({ id: b[0], name: b[1] + ' / 通用包',
-      url: b[2] + REPO + '/releases/latest/download/hz-water.apk' });
-  });
-  out.push({ id:'jsdelivr', name:'jsDelivr CDN', url:'https://cdn.jsdelivr.net/gh/' + REPO + '@main/docs/hz-water.apk' });
-  out.push({ id:'raw',      name:'GitHub raw',   url:'https://raw.githubusercontent.com/' + REPO + '/main/docs/hz-water.apk' });
-  return out;
 }
 var UPDATE_SOURCES = buildSources();
 function updRebuild(){ UPDATE_SOURCES = buildSources(); }
@@ -5338,20 +5324,17 @@ function fetchRemoteVer(done){
    条目写作口径: 只按发布页发过的版本记账(用户只看得见那几版), 不写内部小版本号, 不写函数名与行号. 当前只有 1.0.3 与 1.1.0 两条, 1.1.0 里是 1.0.3 之后的全部改动.
    --------------------------------------------------------------- */
 var CHANGELOG = {
+  '1.1.2': { date:'2026-11-10', notes:[
+    '下载改成四个源同时开工, 谁先下完谁算数: 点下载那一刻就真的在下了, 不再先花几十秒逐个探测源',
+    '点下载后按钮立刻变成"下载中 NN%", 进度卡立刻从空闲切到正在下载, 不再出现点了半天没反应的空窗',
+    '下载期间按钮是灰的, 反复点也只会下一遍; 已经在下的时候再点只提示"正在下载, 不重复开始"',
+    '下载状态与进度会存到本地, 切到别的页面再回来、页面重新加载、甚至应用被系统回收重启, 回来还看得见刚才下到哪儿',
+    '下载被中断会在更新页如实标出"上次下载被中断, 已下多少字节", 想继续就重新点下载',
+    '取消安装回到应用后不再自己又拉一次安装器, 也不再偷偷重下一遍; 只要包还在, 按钮就是"已下好 点击安装", 要不要装由你点',
+    '下载完成单独记账, 不再依赖安装包文件本身判断"已下好": 修掉包被系统清理后回到应用认不出已下好的问题'
+  ]},
   '1.1.1': { date:'2026-11-09', notes:[
-    '闹钟改用系统时钟: 下单后按账单里的完成时刻自动在系统时钟里登记一条, 应用被后台清理也照响',
-    '开机后自动补登记闹钟, 不再因为重启漏响',
-    '修掉剩余时长被误判单位: 剩余不足 10 分钟时闹钟此前会设到几小时后, 或一条都不设',
-    '订单取消或超时后自动撤销已登记的闹钟, 不再挂到点照响',
-    '闹钟时间基准改从服务器响应头取, 不再用本机时钟单独作准, 闹钟页直接显示手机比服务器快或慢多少秒',
-    '闹钟页新增"能不能响"自检: 精确闹钟 / 全屏通知 / 自启动白名单三项分开展示, 各带直达按钮',
-    '响铃改相对渐强, 不再改动系统闹钟音量档',
-    '扫码页相机预览不再上下拉伸, 按真实比例显示',
-    '洗衣订单卡的操作按钮放大: 刷新状态 / 开启洗衣机 / 完成提醒 三个并排到和取消订单同一档, 主操作开启洗衣机双倍高度, 和取消订单之间留出间距',
-    '更新页加下载进度条 / 打开下载目录 / 打开项目仓库; 检查更新不再弹窗, 改成按钮直接显示结果',
-    '更新日志做进软件: 有新版时摊开新版改了什么, 没有时摊开当前这版; 装上新版后第一次打开弹一次, 看过就不再弹',
-    '协议与权限页, 赞赏入口, 按机型下载安装包',
-    '移除一处硬编码的测试账号自动重登逻辑, 登录过期统一提示用户重新收码'
+    '洗衣订单卡的操作按钮放大: 刷新状态 / 开启洗衣机 / 完成提醒 三个并排, 都到和取消订单同一档; 主操作开启洗衣机双倍高度, 按钮之间与取消订单之间都留出间距'
   ]},
   '1.1.0': { date:'2026-11-09', notes:[
     '闹钟改用系统时钟: 下单后按账单里的完成时刻自动在系统时钟里登记一条, 应用被后台清理也照响',
@@ -5405,17 +5388,38 @@ function clHTML(ver, meta){
   return h;
 }
 
-/* 按钮下面那块: 有新版摊新版, 没有就摊当前这版 */
+/* 全部版本的合订本: 双层折叠(外层收起防太长, 每版一层), 新版在上.
+   hl 是默认展开的那一版: 有新版摊新版, 没有就摊当前这版. */
+function clAllHTML(hl){
+  var vs = Object.keys(CHANGELOG).sort(function(a, b){ return cmpVer(b, a); });
+  if(!vs.length) return '';
+  var h = '<details class="card" style="margin-top:9px">'
+    + '<summary style="cursor:pointer;user-select:none"><b>更新日志</b> '
+    + '<span class="pill">' + vs.length + ' 个版本全部改动</span> (点开/收起)</summary>';
+  vs.forEach(function(v){
+    var e = CHANGELOG[v] || { date:'', notes:[] };
+    var open = (hl && v === String(hl)) ? ' open' : '';
+    h += '<details' + open + '><summary style="cursor:pointer;user-select:none;margin-top:8px">'
+      + '<b>v' + esc(v) + '</b> <span class="pill">' + esc(e.date) + ' / '
+      + e.notes.length + ' 条</span></summary>'
+      + '<ul style="margin:4px 0 0 18px;padding:0">';
+    e.notes.forEach(function(x){
+      h += '<li style="margin:5px 0;line-height:1.55">' + esc(String(x)) + '</li>';
+    });
+    h += '</ul></details>';
+  });
+  h += '</details>';
+  return h;
+}
+
+/* 按钮下面那块: 全部版本合订, 新版小节默认展开 */
 function updPaintNotes(){
   var box = $('updNotes');
   if(!box) return;
   var st = UPD.state || 'idle';
   if(st === 'checking'){ box.innerHTML = ''; return; }
-  if(st === 'update' && UPD.remote){
-    box.innerHTML = clHTML(UPD.remote, UPD.remoteMeta);
-    return;
-  }
-  box.innerHTML = clHTML(APP_VER, null);
+  var hl = (st === 'update' && UPD.remote) ? UPD.remote : APP_VER;
+  box.innerHTML = clAllHTML(hl);
 }
 
 var UPD_TEXT = {
@@ -5423,25 +5427,56 @@ var UPD_TEXT = {
   checking:'检查版本中...',
   latest:'现在是最新版本',
   update:'可用更新 点击下载',
+  downloading:'下载中...',
+  ready:'已下好 点击安装',
   error:'检查失败 点击重试'
 };
 
+/* 原生进度快照. 下载状态只认原生这份读数,
+   页面自己的 UPD.state 不能跟原生脱节 -- 之前“点了半天没反应”就是这个原因. */
+function updSnap(){
+  try{
+    if(HASNATIVE && window.HzNative.updateProgress) return JSON.parse(window.HzNative.updateProgress() || 'null');
+  }catch(e){}
+  return null;
+}
+
 function updCheckLabel(){
-  if(UPD.state === 'update' && UPD.remote) return '可用更新 v' + UPD.remote + ' 点击下载';
-  return UPD_TEXT[UPD.state] || UPD_TEXT.idle;
+  var st = UPD.state || 'idle';
+  if(st === 'update' && UPD.remote) return '可用更新 v' + UPD.remote + ' 点击下载';
+  if(st === 'downloading'){
+    var p = updSnap();
+    var got = p ? (Number(p.got) || 0) : 0;
+    var tot = p ? Number(p.total) : -1;
+    if(tot > 0) return '下载中 ' + Math.min(100, Math.floor(got * 100 / tot)) + '%  不可重复点击';
+    return '下载中 ' + updFmtSize(got);
+  }
+  if(st === 'ready') return '已下好 v' + (UPD.readyTag || UPD.remote || '') + ' 点击安装';
+  return UPD_TEXT[st] || UPD_TEXT.idle;
 }
 
 /* 只重画按钮与说明, 不整体 paint(), 免得把页面滚动位置弹回去 */
 function updPaintCheck(){
   var box = $('updCheckWrap');
   if(!box) return;
+  /* 原生不在跑了就别把按钮挂在"下载中": 以原生快照为准.
+     刚点下去那几百毫秒里原生还没把 state.json 写好, 所以要比较起点时间. */
+  if(UPD.state === 'downloading'){
+    var ps = updSnap();
+    if(ps && !ps.running && ps.startedAt && ps.startedAt >= (UPD.dlAt || 0) - 2000){
+      if(ps.phase === 'install'){ UPD.state = 'ready'; UPD.readyTag = String(ps.tag || UPD.dlTag || ''); }
+      else if(ps.phase === 'fail'){ UPD.state = 'error'; UPD.msg = ps.err || '下载失败'; }
+    }
+  }
   var st = UPD.state || 'idle';
   var cls = 'btn-b btn-f';
-  if(st === 'update') cls = 'btn-p';
+  if(st === 'update' || st === 'ready') cls = 'btn-p';
   if(st === 'latest') cls = 'btn-f';
   if(st === 'error') cls = 'btn-f';
-  var dis = (st === 'checking') ? ' disabled' : '';
-  var op = (st === 'checking') ? ';opacity:.6' : '';
+  /* 下载中与检查中都不可点: 连点也只会下一次 */
+  var busy = (st === 'checking' || st === 'downloading');
+  var dis = busy ? ' disabled' : '';
+  var op = busy ? ';opacity:.6' : '';
   box.innerHTML = '<button class="' + cls + '" id="updCheck"' + dis
     + ' style="width:100%' + op + '">' + esc(updCheckLabel()) + '</button>';
   var b = $('updCheck');
@@ -5471,8 +5506,45 @@ function updPaintCheck(){
 function updCheckTap(){
   var st = UPD.state || 'idle';
   if(st === 'checking') return;
+  if(st === 'downloading'){ toast('正在下载, 不重复开始'); return; }
+  if(st === 'ready'){ doInstallReady(); return; }
   if(st === 'update' && UPD.remote){ doUpdate(UPD.remote); return; }
   checkUpdate();
+}
+
+/* 手上已经有下好的包: 直接拉安装器, 不再下一遍 */
+function doInstallReady(){
+  if(!HASNATIVE || !window.HzNative.installReady){ toast('这个环境不能装包'); return; }
+  var k = 'ir' + (++cbSeq);
+  window.__hzCb[k] = function(r){
+    delete window.__hzCb[k];
+    if(r && r.ok){ toast('已拉起安装器'); }
+    else if(r && r.needInstallPerm){ toast('先去打开“允许安装未知应用”, 回来再点一次'); }
+    else { toast('安装没起来, 稍后再试'); }
+    updPaintCheck();
+  };
+  try{ window.HzNative.installReady(k); }
+  catch(e){ toast('安装失败: ' + (e && e.message)); }
+}
+
+/* 回到应用时核对缓存: 已经下好就变“已下好 点击安装”, 绝不自动重下. */
+function updSyncCached(){
+  if(!HASNATIVE || !window.HzNative.updateCached) return;
+  var p = updSnap();
+  /* 原生真在下就不动它; 原生不在跑而页面还当自己在下,
+     那是页面落后了, 下面的缓存校对会把它改正过来. */
+  if(p && p.running) return;
+  var c = null;
+  try{ c = JSON.parse(window.HzNative.updateCached() || 'null'); }catch(e){ c = null; }
+  if(!c || !c.ok) return;
+  var t = String(c.tag || '');
+  if(!t || cmpVer(t, APP_VER) <= 0) return;          /* 旧包/未知版本, 不认 */
+  /* 记账说下好了, 但包文件已经被安装器/系统清掉: 只能如实重下, 不冒充已下好 */
+  if(c.file === false) return;
+  if(UPD.state === 'checking') return;
+  UPD.state = 'ready'; UPD.readyTag = t;
+  if(UPD.remote && cmpVer(UPD.remote, t) === 0) UPD.remoteMeta = UPD.remoteMeta || null;
+  updPaintCheck(); updPaintProg();
 }
 
 function checkUpdate(){
@@ -5503,6 +5575,16 @@ function checkUpdate(){
         log('已经是最新的, 不下载', 's');
         UPD.state = 'latest';
         updPaintCheck();
+        /* 手上有下好的包且还没装: 按钮比"最新版"更需要被看见 */
+        try{
+          var c2 = HASNATIVE && window.HzNative.updateCached
+            ? JSON.parse(window.HzNative.updateCached() || 'null') : null;
+          if(c2 && c2.ok && c2.file !== false && String(c2.tag || '') === String(tag)){
+            UPD.state = 'ready'; UPD.readyTag = String(c2.tag);
+            updPaintCheck();
+            log('缓存里还有一个 v' + c2.tag + ' 没装, 按钮已切成安装', 's');
+          }
+        }catch(e2){}
         return;
       }
       log('发现新版 v' + tag + ', 等用户点按钮再下载');
@@ -5524,79 +5606,75 @@ function checkUpdate(){
   });
 }
 
-/* 用原生 HTTP 发一个 Range: bytes=0-1 的小请求, 只看状态码与 Content-Length */
-/* 只有在版本比对确认"确实有新版本"之后才会走到这里. */
+/* 只有在版本比对确认"确实有新版本" 之后才会走到这里.
+   一律立刻四路并发下: 不探测, 不轮询轮试, 第一毫秒就把按钮和进度卡切成下载中. */
 function doUpdate(tag){
   if(!HASNATIVE){ toast('网页版不能自己装包'); return; }
-  UPD.checking = true; UPD.results = {};
-  UPD.state = 'idle'; UPD.msg = '';
-  updPaintCheck();
-  var left = UPDATE_SOURCES.length;
+  updRebuild();
   var urls = [];
-  log('探测 ' + UPDATE_SOURCES.length + ' 个源');
-  UPDATE_SOURCES.forEach(function(src){
-    probeHead(src.url, function(ok, info){
-      UPD.results[src.id] = { ok:ok, info:info };
-      if(ok) urls.push(src.url);
-      log((ok?'源可用: ':'源不可用: ') + src.name + ' - ' + info, ok?'s':'w');
-      left--;
-      if(left === 0){
-        UPD.checking = false;
-        if(!urls.length){ alertBox('没有可用的源', '所有镜像都探不通, 稍后再试.'); paint(); return; }
-        log('开始下载 v' + tag + ', ' + urls.length + ' 个源');
-        window.__hzCb['upd'] = function(x){
-          log('下载结果: ' + JSON.stringify(x), x && x.ok ? 's' : 'w');
-          /* 缺"安装未知应用"权限: 包已经下好了, 只差授权. 之前这个分支根本没人接,
-             因为原生侧的 reqId 是 null, 提示被静默丢弃 -> 用户看到"下载完了没反应". */
-          if(x && x.needInstallPerm){
-            window.__hzPendingInstall = 'updp';
-            window.__hzCb['updp'] = function(y){
-              log('续装结果: ' + JSON.stringify(y), y && y.ok ? 's' : 'w');
-              if(y && y.ok) toast('已拉起安装器');
-              else if(y && y.needInstallPerm) toast('还是没给安装权限, 在设置里打开后再点"检查更新"');
-              else toast('安装没起来, 稍后再试');
-              paint();
-            };
-            toast('包已下好, 先去打开"允许安装未知应用"');
-            try{ window.HzNative.installPerm('permi'); }
-            catch(e){ log('打不开安装授权页: ' + e.message, 'w'); }
-            paint();
-            return;
-          }
-          if(x && x.ok){
-            toast(x.launched ? '已拉起安装器' : '已下载, 点安装完成升级');
-          }else{
-            toast('下载失败, 换一个源再试');
-          }
-          paint();
-        };
-        try{
-          try{ window.HzNative.updateClear(); }catch(e0){}
-          updPollStart();
-          window.HzNative.updateFrom('upd', urls.join(','));
-        }
-        catch(e){ log('调 updateFrom 失败: ' + e.message, 'r'); }
-        paint();
-      }
-    });
-  });
-}
+  UPDATE_SOURCES.forEach(function(s){ if(s && s.url) urls.push(s.url); });
+  if(!urls.length){ toast('没有可用下载源'); return; }
 
-function probeHead(url, cb){
-  var h = { 'Range':'bytes=0-1', 'Accept':'*/*' };
-  nreq('GET', url, h, '').then(function(r){
-    if(!r.status){ cb(false, r.err || '连不上'); return; }
-    if(r.status === 206 || r.status === 200){
-      cb(true, 'HTTP ' + r.status + (r.text ? (' / ' + r.text.length + 'B 已取') : ''));
+  /* 手上已经有同一个版本的下好包且文件还在: 别再下一遍, 直接拉安装器.
+     之前这里无脑重下, 是"取消安装回来点下载又下 677KB"的最后一个缺口. */
+  try{
+    if(window.HzNative.updateCached && window.HzNative.installReady){
+      var cc = JSON.parse(window.HzNative.updateCached() || 'null');
+      if(cc && cc.ok && cc.file !== false && String(cc.tag || '') === String(tag)){
+        log('缓存里已有 v' + cc.tag + ' 的包(' + updFmtSize(cc.size) + '), 不重下直接安装', 's');
+        doInstallReady();
+        return;
+      }
+    }
+  }catch(e0){}
+
+  /* 立刻切状态, 不等原生回包 */
+  UPD.dlTag = tag;
+  UPD.readyTag = '';
+  UPD.dlAt = Date.now();
+  UPD.state = 'downloading';
+  UPD.msg = '';
+  UPD.results = {};
+  UPDATE_SOURCES.forEach(function(s){ UPD.results[s.id] = { ok:true, info:'与下载同时进行' }; });
+  updPaintCheck();
+  updPaintProg();
+  updPollStart();
+  log('开始下载 v' + tag + ', ' + urls.length + ' 个源并发竞速');
+
+  window.__hzCb['upd'] = function(x){
+    log('下载结果: ' + JSON.stringify(x), x && x.ok ? 's' : 'w');
+    if(x && x.canceled){ UPD.state = 'update'; updPaintCheck(); return; }
+    if(x && x.needInstallPerm){
+      /* 包已经落盘, 只差授权. 留着状态不动, 等用户回来点安装. */
+      UPD.state = 'ready'; UPD.readyTag = tag;
+      updPaintCheck();
+      toast('包已下好, 先去打开"允许安装未知应用"');
+      try{ window.HzNative.installPerm('permi'); }
+      catch(e){ log('打不开安装授权页: ' + e.message, 'w'); }
       return;
     }
-    /* 3xx: 源本身通, 只是把地址转给了 CDN. 下载那一步会跟随重定向, 所以算可用. */
-    if(r.status === 301 || r.status === 302 || r.status === 303 || r.status === 307 || r.status === 308){
-      cb(true, 'HTTP ' + r.status + ' 重定向(下载时会跟随)');
-      return;
+    if(x && x.ok){
+      UPD.state = 'ready'; UPD.readyTag = tag;
+      updPaintCheck();
+      toast(x.launched ? '已拉起安装器' : '已下好, 点安装完成升级');
+    }else{
+      UPD.state = 'error';
+      UPD.msg = (x && x.err) ? String(x.err) : '下载失败, 四个源都没下下来';
+      updPaintCheck();
+      toast('下载失败, 稍后再试');
     }
-    cb(false, 'HTTP ' + r.status);
-  });
+    paint();
+  };
+
+  try{
+    try{ window.HzNative.updateClear(); }catch(e0){}
+    window.HzNative.updateFrom2('upd', urls.join(','), tag);
+  }catch(e){
+    log('调 updateFrom2 失败: ' + e.message, 'r');
+    UPD.state = 'error'; UPD.msg = '下载器起不来: ' + e.message;
+    updPaintCheck();
+  }
+  paint();
 }
 
 /* ---------- 需求5a: 下载进度 ----------
@@ -5616,7 +5694,15 @@ function updPhaseText(p){
   if(p === 'probe') return '正在探测下载源';
   if(p === 'download') return '正在下载';
   if(p === 'verify') return '正在校验安装包';
-  if(p === 'install') return '已下好, 正在拉起安装器';
+  /* install 态分两种: 刚下完正在拉安装器(几秒), 以及拉过之后一直没装(用户取消/包已不在).
+     用 endedAt 距今超过 30 秒区分: 超过就是"等待安装", 别再写"正在". */
+  if(p === 'install'){
+    try{
+      var ps = updSnap();
+      if(ps && ps.endedAt && Date.now() - ps.endedAt > 30000) return '已下好, 等待安装';
+    }catch(e){}
+    return '已下好, 正在拉起安装器';
+  }
   if(p === 'fail') return '下载失败';
   return '空闲';
 }
@@ -5680,13 +5766,30 @@ function updPollStart(){
   UPD_POLL.lastAt = 0; UPD_POLL.lastGot = 0; UPD_POLL.bps = 0;
   updPaintProg();
   UPD_POLL.t = setInterval(function(){
-    var p = null;
-    try{ if(HASNATIVE && window.HzNative.updateProgress) p = JSON.parse(window.HzNative.updateProgress() || 'null'); }catch(e){ p = null; }
+    var p = updSnap();
+    /* 按钮文字也由原生快照驱动, 页面不自己猜状态 */
+    if(p){
+      if(p.running){
+        if(UPD.state !== 'downloading'){ UPD.state = 'downloading'; updPaintCheck(); }
+      }else if(p.phase === 'install'){
+        if(UPD.state !== 'ready'){
+          UPD.state = 'ready';
+          UPD.readyTag = String(p.tag || UPD.dlTag || '');
+          updPaintCheck();
+        }
+      }else if(p.phase === 'fail'){
+        if(UPD.state !== 'error'){
+          UPD.state = 'error';
+          UPD.msg = p.err || '下载失败';
+          updPaintCheck();
+        }
+      }
+    }
     updPaintProg();
     if(p && !p.running && (p.phase === 'install' || p.phase === 'fail' || p.phase === 'idle')){
       updPollStop();
     }
-  }, 400);
+  }, 350);
 }
 
 function updPollStop(){
@@ -5760,7 +5863,7 @@ function pageUpdate(host){
   UPDATE_SOURCES.forEach(function(src, i){
     var r = UPD.results[src.id];
     var cls = r ? (r.ok ? 'on' : 'bad') : '';
-    var txt = r ? (r.ok ? '可用' : '不可用') : '未探测';
+    var txt = r ? (r.ok ? '并发中' : '不可用') : '待下载';
     h += '<div class="mirror"><s>' + (i+1) + '</s><b>' + esc(src.name) + '</b>'
       + '<em class="' + cls + '">' + txt + '</em></div>';
     /* 地址原样摊出来, 你可以直接复制走: 粘到浏览器或下载器里自己下,
@@ -5783,8 +5886,14 @@ function pageUpdate(host){
   host.innerHTML = h;
   updPaintProg();
   try{
-    var pp = HASNATIVE && window.HzNative.updateProgress ? JSON.parse(window.HzNative.updateProgress() || 'null') : null;
-    if(pp && pp.running) updPollStart();
+    var pp = updSnap();
+    if(pp && pp.running){ UPD.state = 'downloading'; updPollStart(); }
+    else {
+      if(pp && pp.phase === 'fail' && (Number(pp.got) || 0) > 0){
+        log('上次下载被中断: ' + (pp.err || ''), 'w');
+      }
+      try{ updSyncCached(); }catch(e){}
+    }
   }catch(e){}
   updPaintCheck();
   host.querySelectorAll('[data-updcopy]').forEach(function(el){
@@ -7915,16 +8024,25 @@ function changelogPopupOnce(){
   }else if(cmpVer(seen, APP_VER) === 0){
     return;                                           /* 这一版看过了 */
   }
-  var o = clNotesOf(APP_VER, null);
   seenSave(APP_VER);                               /* 先记, 免得弹窗期间被重入再弹 */
-  if(!o.notes.length) return;
-  var body = '<div class="sub" style="margin-bottom:8px">已更新到 v' + esc(APP_VER)
-    + (o.date ? (' (' + esc(o.date) + ')') : '') + ', 这一版改了:</div>'
-    + '<ul style="margin:0 0 0 18px;padding:0">';
-  o.notes.forEach(function(x){
-    body += '<li style="margin:6px 0;line-height:1.55">' + esc(String(x)) + '</li>';
+  /* 合订口径: 从上次看的版本(没有就全部)到当前版之间, 每一版完整列出, 新版在前.
+     单版简介是发布页的事, 软件里给用户看的是累计的全部改动. */
+  var from = seen || '0';
+  var vs = Object.keys(CHANGELOG).sort(function(a, b){ return cmpVer(b, a); })
+    .filter(function(v){ return cmpVer(v, from) > 0 && cmpVer(v, APP_VER) <= 0; });
+  if(!vs.length) vs = [APP_VER];
+  var body = '<div class="sub" style="margin-bottom:4px">已更新到 v' + esc(APP_VER)
+    + ', 这些版本一起改了:</div>';
+  vs.forEach(function(v){
+    var e = CHANGELOG[v] || { date:'', notes:[] };
+    body += '<div style="margin:10px 0 2px;font-weight:600">v' + esc(v)
+      + (e.date ? (' <span class="pill">' + esc(e.date) + '</span>') : '') + '</div>'
+      + '<ul style="margin:0 0 0 18px;padding:0">';
+    e.notes.forEach(function(x){
+      body += '<li style="margin:5px 0;line-height:1.55">' + esc(String(x)) + '</li>';
+    });
+    body += '</ul>';
   });
-  body += '</ul>';
   alertBox('更新内容', body, [{ label:'知道了' }]);
 }
 
