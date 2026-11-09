@@ -48,6 +48,7 @@ public class ScanActivity extends Activity implements SurfaceHolder.Callback {
     static final String TAG = "HzWaterScan";
     static final String EXTRA_TEXT = "text";
 
+    FrameLayout root;
     SurfaceView surface;
     OverlayView overlay;
     TextView hint;
@@ -72,10 +73,14 @@ public class ScanActivity extends Activity implements SurfaceHolder.Callback {
 
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
+        this.root = root;
 
         surface = new SurfaceView(this);
         root.addView(surface, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        // 预览画面比例修正监听: 由 layoutPreview() 按"旋转后的预览宽高比"重排 SurfaceView
+        root.addOnLayoutChangeListener(new RelayoutCb(this));
 
         overlay = new OverlayView(this);
         root.addView(overlay, new FrameLayout.LayoutParams(
@@ -113,6 +118,7 @@ public class ScanActivity extends Activity implements SurfaceHolder.Callback {
                 cam.setDisplayOrientation(rotationDeg);
                 cam.startPreview();
                 overlay.setFrameByPreview(previewW, previewH);
+                layoutPreview();
             } catch (Exception e) {
                 Log.e(TAG, "surfaceChanged failed", e);
                 finishErr("相机启动失败");
@@ -152,6 +158,7 @@ public class ScanActivity extends Activity implements SurfaceHolder.Callback {
             cam.setPreviewDisplay(h);
             cam.setPreviewCallback(new PreviewCb(this));
             cam.startPreview();
+            layoutPreview();
         } catch (Exception e) {
             Log.e(TAG, "open camera failed", e);
             finishErr("打不开相机, 检查权限");
@@ -165,6 +172,55 @@ public class ScanActivity extends Activity implements SurfaceHolder.Callback {
             case Surface.ROTATION_270: return 270;
             default: return 0;
         }
+    }
+
+    /**
+     * 让预览画面保持相机原始宽高比, 不再被整屏拉伸.
+     *
+     * 拉伸的原因: 预览数据是横向 buffer(如 960x720), 先被 setDisplayOrientation 旋转 90 度,
+     * 屏幕上正确的宽高比是 previewH:previewW(竖着的那份), 而 SurfaceView 之前是
+     * MATCH_PARENT 铺满整屏(约 9:20). 两者比例不等, 系统只能把预览非等比缩放填满
+     * SurfaceView, 于是画面在某一方向上被拉长 -- 这就是用户看到的"上下拉伸".
+     *
+     * 修法: 按旋转后的宽高比算出一个尽量大的居中矩形, 改 SurfaceView 的 LayoutParams;
+     * 相机输出尺寸不变, 只是不再强行填满屏幕, 多出来的地方留黑边(黑底).
+     * 90/270 度时用 (h,w), 0/180 度时用 (w,h).
+     */
+    void layoutPreview() {
+        if (root == null || surface == null) return;
+        int rw = root.getWidth();
+        int rh = root.getHeight();
+        if (rw <= 0 || rh <= 0) return;
+        if (previewW <= 0 || previewH <= 0) return;
+
+        boolean turned = (rotationDeg % 180) != 0;
+        /* 旋转后看到的宽 : 高 */
+        int vw = turned ? previewH : previewW;
+        int vh = turned ? previewW : previewH;
+        if (vw <= 0 || vh <= 0) return;
+
+        float scale = Math.min((float) rw / vw, (float) rh / vh);
+        int w = Math.round(vw * scale);
+        int h = Math.round(vh * scale);
+        /* 不要超过容器, 也不要退化成 0 */
+        if (w > rw) w = rw;
+        if (h > rh) h = rh;
+        if (w <= 0 || h <= 0) return;
+
+        ViewGroup.LayoutParams lp = surface.getLayoutParams();
+        if (lp instanceof FrameLayout.LayoutParams) {
+            FrameLayout.LayoutParams f = (FrameLayout.LayoutParams) lp;
+            if (f.width == w && f.height == h) return;   // 已经对了, 别反复 requestLayout
+            f.width = w;
+            f.height = h;
+            f.gravity = android.view.Gravity.CENTER;
+            surface.setLayoutParams(f);
+        } else {
+            surface.setLayoutParams(new FrameLayout.LayoutParams(w, h,
+                    android.view.Gravity.CENTER));
+        }
+        Log.i(TAG, "preview layout " + w + "x" + h + " (buffer " + previewW + "x" + previewH
+                + ", rot " + rotationDeg + ", view " + rw + "x" + rh + ")");
     }
 
     /** 挑一个 720p 以内的预览尺寸: 再大解码就慢得没法逐帧 */
@@ -243,6 +299,22 @@ public class ScanActivity extends Activity implements SurfaceHolder.Callback {
     }
 
     /* ---------- 逐帧回调 ---------- */
+
+    /*
+     * 布局变化回调: 屏幕旋转/系统栏变化后重新按预览比例排一次 SurfaceView.
+     * 必须是 static 嵌套类(理由同下方 PreviewCb 注释).
+     */
+    static class RelayoutCb implements View.OnLayoutChangeListener {
+        private final ScanActivity act;
+
+        RelayoutCb(ScanActivity a) { act = a; }
+
+        @Override
+        public void onLayoutChange(View v, int l, int t, int r, int b,
+                                   int ol, int ot, int or, int ob) {
+            if (r - l != or - ol || b - t != ob - ot) act.layoutPreview();
+        }
+    }
 
     /*
      * PreviewCb 与 DecodeJob 都必须是 static 嵌套类.

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.hz.water"
-    android:versionCode="12"
-    android:versionName="1.0.0">
+    android:versionCode="21"
+    android:versionName="1.1.0">
 
     <uses-sdk android:minSdkVersion="23" android:targetSdkVersion="33" />
 
@@ -16,6 +16,13 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- 这一条是系统时钟通道的硬前提: AOSP 的 AlarmClock.HandleSetAlarmActivity
+         在 startActivity 时会检查调用方是否持有 com.android.alarm.permission.SET_ALARM,
+         缺失就直接抛 SecurityException(Permission Denial), 时钟界面连弹都不弹.
+         它属 normal 级权限, 装上即授予, 不需要用户点任何开关.
+         过去把它判成"小米不支持 SET_ALARM"就是这个原因. -->
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
+    <uses-permission android:name="com.android.alarm.permission.SET_TIMER" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -45,6 +52,46 @@
         <intent>
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="weixin" />
+        </intent>
+        <!-- 系统时钟 App 的包可见性声明(Android 11+ 必须).
+             不写这几条, resolveActivity 永远是 null, "系统闹钟"这条通道在任何品牌上
+             都表现为"没有可用时钟 App", 只能退回应用内闹钟, 这正是过去判成
+             "各品牌不支持"的真实原因. -->
+        <intent>
+            <action android:name="android.intent.action.SET_ALARM" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SET_TIMER" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SHOW_ALARMS" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.DISMISS_ALARM" />
+        </intent>
+        <!-- 常见原厂时钟包名: 少数品牌不导出 SET_ALARM, 靠包名再兜一层 -->
+        <package android:name="com.android.deskclock" />
+        <package android:name="com.google.android.deskclock" />
+        <package android:name="com.miui.clock" />
+        <package android:name="com.huawei.deskclock" />
+        <package android:name="com.coloros.alarmclock" />
+        <package android:name="com.oplus.alarmclock" />
+        <package android:name="com.vivo.alarmclock" />
+        <package android:name="com.sec.android.app.clockpackage" />
+        <package android:name="com.bbk.clock" />
+        <package android:name="com.meizu.flyme.clock" />
+        <!-- 打开下载目录: 文件管理器 / 安装器入口的可见性 -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="resource/folder" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:mimeType="application/vnd.android.package-archive" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.OPEN_DOCUMENT" />
+            <data android:mimeType="*/*" />
         </intent>
     </queries>
     <application
@@ -101,12 +148,21 @@
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
 
+        <!-- directBootAware=true 是必须的: 直接开机(用户还没解锁)时系统先发
+             LOCKED_BOOT_COMPLETED, 解锁后才发 BOOT_COMPLETED. 只监听后者的话,
+             从开机到解锁这段时间闹钟根本没登记, 恰好在解锁前到点就不响.
+             代价是闹钟记录必须放 device-protected storage (见 NativeExtras.spAlarm). -->
         <receiver
             android:name=".BootReceiver"
             android:exported="true"
-            android:directBootAware="false">
+            android:directBootAware="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>

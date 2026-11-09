@@ -73,6 +73,10 @@ public class AlarmActivity extends Activity {
         final String tag = it.getStringExtra(EX_TAG);
         if (title == null || title.length() == 0) title = "洗衣完成";
 
+        /* 音量键调"闹钟"音量, 不是铃声音量. 少了这一行, 用户在这个界面按音量键
+           会觉得"怎么调不小", 因为调的是另一个流, 而闹钟音量在响的那个流没动. */
+        setVolumeControlStream(AudioManager.STREAM_ALARM);
+
         Window w = getWindow();
         if (Build.VERSION.SDK_INT >= 27) {
             setShowWhenLocked(true);

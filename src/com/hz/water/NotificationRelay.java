@@ -85,4 +85,67 @@ final class NotificationRelay {
         }
         nm.notify(ID_ALARM, b.build());
     }
+
+    /**
+     * 这台机器上"全屏通知"到底还能不能用.
+     *
+     * Android 14(API 34) 起, USE_FULL_SCREEN_INTENT 对非闹钟/非通话类应用默认不授予:
+     * 装上去就有一个 appop 是 ignore, 发出去的通知带 FSI_REQUESTED_BUT_DENIED,
+     * 全屏界面根本不弹. 系统级/预装应用不受此限, 所以我们抄不到 DeskClock 的做法
+     * (它全文没有 canUseFullScreenIntent 调用, 因为它不需要).
+     *
+     * 注意 API 34 之前一律返回 true: 低版本没有这个限制, 也不该因为查不到而报错.
+     */
+    static boolean canFullScreen(Context c) {
+        if (Build.VERSION.SDK_INT < 34) return true;
+        try {
+            NotificationManager nm =
+                    (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
+            if (nm == null) return false;
+            return nm.canUseFullScreenIntent();
+        } catch (Throwable t) {
+            /* 查不到就当不能用, 让页面去引导授权; 这比谎报 true 更好 --
+               谎报 true 的结果是到点什么都不弹, 用户以为闹钟坏了 */
+            return false;
+        }
+    }
+
+    /**
+     * 跳到"允许全屏通知"设置页.
+     *
+     * 用字面量 "android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT", 不用
+     * Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT 常量: 常量是 API 34 才有的,
+     * 我们的 build 用 android-34 之外的工具链时编不过, 而字面量在所有版本上都能编,
+     * 到低版本只是 startActivity 抛 ActivityNotFound 后走兜底而已.
+     *
+     * @return 描述结果的 JSON, 页面据此决定要不要提示用户手动找
+     */
+    static String openFullScreenSettings(Context c) {
+        if (Build.VERSION.SDK_INT < 34) {
+            return "{\"ok\":false,\"sdk\":" + Build.VERSION.SDK_INT
+                    + ",\"err\":\"这个系统版本没有全屏通知开关\"}";
+        }
+        if (canFullScreen(c)) {
+            return "{\"ok\":true,\"already\":true}";
+        }
+        try {
+            Intent i = new Intent("android.settings.MANAGE_APP_USE_FULL_SCREEN_INTENT");
+            i.setData(android.net.Uri.parse("package:" + c.getPackageName()));
+            i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            /* 不做 resolveActivity 预判: targetSdk 30+ 的包可见性会把它判成 null,
+               连能用的机型也当成打不开. 直接 start, 失败在 catch 里兜. */
+            c.startActivity(i);
+            return "{\"ok\":true,\"opened\":true}";
+        } catch (Throwable t) {
+            try {
+                Intent i2 = new Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+                i2.putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, c.getPackageName());
+                i2.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                c.startActivity(i2);
+                return "{\"ok\":true,\"opened\":\"notification-settings\"}";
+            } catch (Throwable t2) {
+                return "{\"ok\":false,\"err\":" + PrefStore.quote("打不开设置页: " + t2) + "}";
+            }
+        }
+    }
 }

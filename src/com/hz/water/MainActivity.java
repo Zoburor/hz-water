@@ -641,6 +641,61 @@ public class MainActivity extends Activity {
             act.runOnUiThread(new InstallTask(act, reqId));
         }
 
+        /**
+         * 下载进度快照. 页面每 300ms 读一次, 拿到 phase/got/total/bps 等字段.
+         * 这里直接返回字符串(不进 deliver 通道), 因为 deliver 是一次性回调,
+         * 用它推进度会把最终的安装结果吞掉.
+         */
+        @JavascriptInterface
+        public String updateProgress() {
+            return UpdateTask.snapshot();
+        }
+
+        /** 主动清空进度显示(页面收起进度条时用) */
+        @JavascriptInterface
+        public void updateClear() {
+            if (!UpdateTask.running) UpdateTask.phase = "idle";
+        }
+
+        /**
+         * 打开下载目录.
+         * 包下载到 cache/update/ 是私有目录, 文件管理器进不去(没有权限),
+         * 所以这里分两级:
+         *   1) 优先用系统"最近文件/下载"界面(Settings.ACTION_... 不可靠, 直接挑文件管理器能显示的公共 Downloads);
+         *   2) 退一步把 update.apk 复制到公共 Downloads, 再用 ACTION_VIEW + resource/folder 打开目录.
+         * 页面拿到 ok 后 toast 提示位置, 拿不到就显示路径文本让用户自己找.
+         */
+        @JavascriptInterface
+        public void openDownloadDir(String reqId) {
+            act.runOnUiThread(new OpenDirTask(act, reqId));
+        }
+
+        /** 这台机器上有哪些 App 能接系统闹钟(诊断用) */
+        @JavascriptInterface
+        public String alarmApps() {
+            return NativeExtras.alarmAppsJson(act);
+        }
+
+        /** 全屏通知 / 精确闹钟 / 自启动这六个开关的现状, 页面拿来画"能不能响" */
+        @JavascriptInterface
+        public String alarmHealth() {
+            return NativeExtras.alarmHealth(act);
+        }
+
+        /** 跳到本机厂商的自启动白名单页 */
+        @JavascriptInterface
+        public void autoStartPage(String reqId) {
+            String r = NativeExtras.openAutoStartPage(act);
+            act.deliver(reqId, wrapOk(r));
+        }
+
+        /** 跳到"允许全屏通知"设置页(Android 14+) */
+        @JavascriptInterface
+        public void fullScreenPerm(String reqId) {
+            String r = NotificationRelay.openFullScreenSettings(act);
+            act.deliver(reqId, wrapOk(r));
+        }
+
         /** 用户点"不同意"时真的要能退出, 不是只弹个提示 */
         @JavascriptInterface
         public void exitApp() {
@@ -898,10 +953,27 @@ public class MainActivity extends Activity {
                     in.close();
                     text = new String(bo.toByteArray(), "UTF-8");
                 }
+                /*
+                 * 把响应头 Date 一起带回去: 页面用 (服务端时刻 - 本机时刻) 得到时钟偏差,
+                 * 之后所有"到点时刻"都用本机时间 + 偏差 计算, 手机时钟不准也不影响闹钟.
+                 * Date 头是 RFC 7231 规定的服务器时钟, 解析失败就是 0, 页面按 0 处理(不修正).
+                 */
+                long srv = 0L;
+                try {
+                    String dh = c.getHeaderField("Date");
+                    if (dh != null && dh.length() > 0) {
+                        java.text.SimpleDateFormat f =
+                                new java.text.SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss zzz", java.util.Locale.US);
+                        java.util.Date d = f.parse(dh);
+                        if (d != null) srv = d.getTime();
+                    }
+                } catch (Exception ignored) { }
+
                 JSONObject r = new JSONObject();
                 r.put("ok", true);
                 r.put("status", code);
                 r.put("text", text);
+                if (srv > 0L) r.put("date", srv);
                 return r.toString();
             } catch (Exception e) {
                 Log.w(TAG, "http " + url, e);
@@ -928,21 +1000,83 @@ public class MainActivity extends Activity {
             urlCsv = csv == null ? "" : csv;
         }
 
+        /*
+         * 下载进度. 用 static volatile 字段而不是事件回调:
+         * deliver() 里会 delete window.__hzCb[id], 回调只能收一次, 拿它推几百次进度会把
+         * 最终的安装结果吞掉. 所以进度写成"可随时读的快照", 由页面轮询 HzNative.updateProgress().
+         * 字段全 volatile: 写线程是 UpdateTask, 读线程是 WebView 的 JS 桥线程.
+         */
+        static volatile boolean running;
+        static volatile String phase = "idle";   // idle / probe / download / verify / install / fail
+        static volatile long got;                // 已下载字节
+        static volatile long total;              // 总字节, 服务器没给 Content-Length 时为 -1
+        static volatile int srcIndex;            // 当前第几个源(0 基)
+        static volatile int srcCount;            // 一共几个源
+        static volatile String srcUrl = "";
+        static volatile String err = "";
+        static volatile long startedAt;
+        static volatile long endedAt;
+
+        static void reset(int count) {
+            running = true;
+            phase = "probe";
+            got = 0;
+            total = -1;
+            srcIndex = 0;
+            srcCount = count;
+            srcUrl = "";
+            err = "";
+            startedAt = System.currentTimeMillis();
+            endedAt = 0;
+        }
+
+        static String snapshot() {
+            StringBuilder sb = new StringBuilder(192);
+            sb.append("{\"running\":").append(running);
+            sb.append(",\"phase\":").append(PrefStore.quote(phase));
+            sb.append(",\"got\":").append(got);
+            sb.append(",\"total\":").append(total);
+            sb.append(",\"srcIndex\":").append(srcIndex);
+            sb.append(",\"srcCount\":").append(srcCount);
+            sb.append(",\"url\":").append(PrefStore.quote(srcUrl));
+            sb.append(",\"err\":").append(PrefStore.quote(err));
+            long now = endedAt > 0 ? endedAt : System.currentTimeMillis();
+            sb.append(",\"elapsed\":").append(startedAt > 0 ? now - startedAt : 0);
+            /* 速度按已用时间粗算, 页面只用来显示 KB/s, 不追求精确 */
+            long ms = startedAt > 0 ? (now - startedAt) : 0;
+            long bps = ms > 300 ? (got * 1000L / ms) : 0;
+            sb.append(",\"bps\":").append(bps);
+            sb.append('}');
+            return sb.toString();
+        }
+
         @Override
         public void run() {
             String[] urls = urlCsv.split(",");
             String lastErr = null;
+            reset(urls.length);
             for (int i = 0; i < urls.length; i++) {
                 String u = urls[i].trim();
                 if (u.length() == 0) continue;
+                srcIndex = i;
+                srcUrl = u;
+                phase = "probe";
                 String r = tryOne(u);
                 if (r == null) {
-                    act.deliver(reqId, "{\"ok\":true,\"url\":\"" + u.replace("\"", "") + "\"}");
-                    act.runOnUiThread(new InstallTask(act, null));
+                    /* 下载成功: 不再先 deliver 中间态(页面回调取一次就删, 会把安装结果吞掉),
+                       直接把 reqId 交给 InstallTask, 由它汇报"缺安装权限"或"已拉起安装器". */
+                    Log.i(TAG, "update ready, hand to installer: " + u);
+                    phase = "install";
+                    endedAt = System.currentTimeMillis();
+                    act.runOnUiThread(new InstallTask(act, reqId));
                     return;
                 }
                 lastErr = r;
+                err = r == null ? "" : r;
             }
+            running = false;
+            phase = "fail";
+            endedAt = System.currentTimeMillis();
             act.deliverErr(reqId, lastErr == null ? "没有可用地址" : lastErr, "\"tried\":" + urls.length);
         }
 
@@ -972,10 +1106,19 @@ public class MainActivity extends Activity {
                 byte[] buf = new byte[16384];
                 int n;
                 long total = 0;
+                phase = "download";
+                UpdateTask.total = len > 0 ? len : -1;
+                UpdateTask.got = 0;
+                long lastMark = 0;
                 while ((n = in.read(buf)) > 0) {
                     fos.write(buf, 0, n);
                     total += n;
+                    UpdateTask.got = total;
+                    /* 每 64KB 才刷一次时间戳, 别让进度写入本身拖慢下载 */
+                    long nowMs = System.currentTimeMillis();
+                    if (nowMs - lastMark > 200) lastMark = nowMs;
                 }
+                phase = "verify";
                 in.close();
                 fos.flush();
                 fos.close();
@@ -1025,10 +1168,11 @@ public class MainActivity extends Activity {
                 return;
             }
             if (!NativeExtras.canInstall(act)) {
-                if (reqId != null) {
-                    act.deliver(reqId,
-                            "{\"ok\":false,\"needInstallPerm\":true,\"err\":\"需要允许安装未知应用\"}");
-                }
+                Log.w(TAG, "install blocked: canRequestPackageInstalls=false");
+                /* 无论如何都要把"缺权限"送回页面 —— 之前 reqId 为 null 时这里整条静默丢弃,
+                   表现就是"下载完了却什么都没发生". */
+                act.deliver(reqId,
+                        "{\"ok\":false,\"needInstallPerm\":true,\"err\":\"需要允许安装未知应用\"}");
                 return;
             }
             try {
@@ -1041,6 +1185,105 @@ public class MainActivity extends Activity {
                 if (reqId != null) act.deliverOk(reqId, "\"launched\":true");
             } catch (Exception e) {
                 if (reqId != null) act.deliverErr(reqId, "拉起安装器失败: " + e.getMessage(), null);
+            }
+        }
+    }
+
+    /**
+     * 打开下载目录.
+     *
+     * 更新包在 cache/update/update.apk, 那是应用私有目录, 第三方文件管理器没有权限进去,
+     * 直接拿这个路径去打开目录只会看到"空文件夹". 所以这条路分三级:
+     *   1) 如果已经拿到"所有文件访问权限", 把 update.apk 复制一份到公共 Downloads
+     *      (带版本号文件名), 再用 ACTION_VIEW + resource/folder 打开公共 Downloads;
+     *   2) 没拿到权限, 但系统 DownloadManager 里有记录, 退一步用 ACTION_VIEW_DOWNLOADS 打开系统下载界面;
+     *   3) 都不行, 就把真实路径字符串回给页面, 让页面显示出来让用户照着找.
+     * 无论哪一级, 都回"最终路径 + 用了哪一级", 页面据此显示提示, 不猜.
+     */
+    static class OpenDirTask implements Runnable {
+        final MainActivity act;
+        final String reqId;
+
+        OpenDirTask(MainActivity a, String id) {
+            act = a;
+            reqId = id;
+        }
+
+        @Override
+        public void run() {
+            File apk = new File(ApkProvider.dir(act), "update.apk");
+            String targetPath = null;
+            String level = "";
+
+            /* 一级: 有全文件权限 -> 复制到公共 Downloads, 打开它 */
+            if (apk.exists() && AccDump.canAllFiles()) {
+                try {
+                    File pub = new File(
+                            android.os.Environment.getExternalStoragePublicDirectory(
+                                    android.os.Environment.DIRECTORY_DOWNLOADS),
+                            "hz-water-update.apk");
+                    File p = pub.getParentFile();
+                    if (p != null && !p.exists()) p.mkdirs();
+                    copy(apk, pub);
+                    targetPath = pub.getAbsolutePath();
+                    level = "downloads";
+                } catch (Throwable e) {
+                    Log.w(TAG, "copy to Downloads failed", e);
+                }
+            }
+
+            /* 有了公共路径(或者本来就在缓存里)就试着用目录浏览界面打开 */
+            String openErr = null;
+            if (targetPath != null) {
+                try {
+                    Uri dirUri = Uri.parse("content://com.android.externalstorage.documents/document/primary%3ADownload");
+                    Intent i = new Intent(Intent.ACTION_VIEW);
+                    i.setDataAndType(dirUri, "resource/folder");
+                    i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    act.startActivity(i);
+                    act.deliverOk(reqId, "\"level\":" + PrefStore.quote("downloads")
+                            + ",\"copied\":true"
+                            + ",\"path\":" + PrefStore.quote(targetPath));
+                    return;
+                } catch (Throwable e) {
+                    openErr = String.valueOf(e);
+                    Log.w(TAG, "open Downloads folder failed: " + e);
+                }
+            }
+
+            /* 二级: 系统下载界面 */
+            try {
+                Intent i = new Intent(android.app.DownloadManager.ACTION_VIEW_DOWNLOADS);
+                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                act.startActivity(i);
+                act.deliverOk(reqId, "\"level\":" + PrefStore.quote("system-downloads")
+                        + ",\"copied\":" + (targetPath != null)
+                        + ",\"path\":" + PrefStore.quote(targetPath == null ? apk.getAbsolutePath() : targetPath));
+                return;
+            } catch (Throwable e) {
+                if (openErr == null) openErr = String.valueOf(e);
+            }
+
+            /* 三级: 回路径, 让页面显示 */
+            act.deliver(reqId, "{\"ok\":false,\"level\":\"none\""
+                    + ",\"path\":" + PrefStore.quote(apk.getAbsolutePath())
+                    + ",\"exists\":" + apk.exists()
+                    + ",\"allFiles\":" + AccDump.canAllFiles()
+                    + ",\"err\":" + PrefStore.quote(openErr == null ? "没有能打开目录的界面" : openErr)
+                    + "}");
+        }
+
+        private static void copy(File from, File to) throws Exception {
+            java.io.FileInputStream is = new java.io.FileInputStream(from);
+            FileOutputStream os = new FileOutputStream(to);
+            try {
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = is.read(buf)) > 0) os.write(buf, 0, n);
+                os.flush();
+            } finally {
+                try { is.close(); } catch (Exception ignored) { }
+                try { os.close(); } catch (Exception ignored) { }
             }
         }
     }

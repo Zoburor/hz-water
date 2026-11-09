@@ -797,6 +797,36 @@ if(HASNATIVE){
 }
 
 
+/* ---------------------------------------------------------------
+   服务器时钟偏差(只用于两件事, 不当"时间基准"用来算到点时刻).
+
+   为什么不能直接拿服务器时间算到点: AlarmManager 和厂商时钟 App 都按手机自己的
+   时钟读数走. 手机慢一小时, 闹钟就跟着晚一小时 -- 把服务器时刻直接传下去只会
+   额外再晚一个偏差. 所以到点时刻必须落在"设备时钟坐标系"里:
+
+     remain(纯时长)      -> Date.now() + N 秒       设备秒速准, 免疫读数偏差
+     washEndTime(服务器) -> 减 skew 转成设备坐标系
+
+   skew 因此只剩两个用途: ① 上面的坐标转换; ② 界面告警"手机比服务器慢 N 秒".
+   Date 头只到秒, 精度 1 秒; 单次跳动超 30 分钟视为中间层改写, 不采信.
+   --------------------------------------------------------------- */
+var SRV_SKEW = 0;          /* 服务端时刻 - 本机时刻, 毫秒 */
+var SRV_SKEW_AT = 0;       /* 上次校正的本机时刻 */
+var SRV_SKEW_OK = false;   /* 有没有成功校正过 */
+
+function srvSkewFrom(dateMs){
+  var d = Number(dateMs);
+  if(!isFinite(d) || d <= 0) return;
+  var diff = d - Date.now();
+  /* 手机时间被手动改过时会跳很大; 但服务端 Date 是从响应生成到收到的真实时刻,
+     正常情况 |diff| 在几十毫秒到几秒. 超过 30 分钟多半是 Date 头被中间层改写,
+     这种就不采信, 免得把对的时钟带偏. */
+  if(Math.abs(diff) > 30 * 60 * 1000) return;
+  SRV_SKEW = diff;
+  SRV_SKEW_AT = Date.now();
+  SRV_SKEW_OK = true;
+}
+
 function nreq(method, url, headers, body){
   headers = headers || {};
   if(HASNATIVE){
@@ -804,7 +834,10 @@ function nreq(method, url, headers, body){
       var id = 'r' + (++cbSeq);
       window.__hzCb[id] = function(r){
         delete window.__hzCb[id];
-        if(r && r.ok) resolve({ status: r.status, text: r.text || '' });
+        if(r && r.ok){
+          if(r.date) srvSkewFrom(r.date);
+          resolve({ status: r.status, text: r.text || '' });
+        }
         else resolve({ status: 0, text: '', err: (r && r.err) || 'native fail' });
       };
       try{ window.HzNative.http(id, method, url, JSON.stringify(headers), body || ''); }
@@ -814,6 +847,7 @@ function nreq(method, url, headers, body){
   var opt = { method: method, headers: headers };
   if(body) opt.body = body;
   return fetch(url, opt).then(function(r){
+    try{ var dh = r.headers.get('date'); if(dh) srvSkewFrom(Date.parse(dh)); }catch(e){}
     return r.text().then(function(t){ return { status: r.status, text: t }; });
   }).catch(function(e){ return { status: 0, text: '', err: String(e) }; });
 }
@@ -1341,24 +1375,8 @@ async function sessionDead(){
   TOKEN_DEAD = true;
   var phone = S.phone || '';
   S.token = null;
-  if(phone === '13800000000'){
-    log('胖乖 token 已失效, 用测试号自动重登...', 'w');
-    try{
-      var r = await nreq('POST', BASE+'user/reg', {
-        'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'
-      }, 'channel=h5&phone=13800000000&verify=123456');
-      var j = jparse(r.text || '');
-      if(j && j.code===0 && j.data && j.data.token){
-        S.token = j.data.token;
-        accUpsert('water', { phone:'13800000000', token:S.token });
-        log('自动重登成功', 's');
-        TOKEN_DEAD = false;
-        if(CUR==='water') paint();
-        return;
-      }
-    }catch(e){}
-  }
-  /* 其他账号: 明确弹窗, 别让用户看着卡片闪来闪去不知道发生了什么.
+  /* 不在这里做任何自动重登: 短信验证码只能由用户本人收, 客户端无从代劳.
+     统一走下面的弹窗, 别让用户看着卡片闪来闪去不知道发生了什么.
      只弹一次, 用户点"知道了"才放行, 期间不重试. */
   log('胖乖 token 已失效 (' + (phone || '未记录手机号') + '), 需要重新收码登录', 'e');
   if(CUR==='water') paint();
@@ -1873,7 +1891,7 @@ async function wUnlock(){
   }
   /* 区/通道必须同源: washerId 与通道属于扫码那台设备(S.areaId),
      chargeAreaId 是扣费水区. 两者不同区时服务端直接 code=1 参数不正确 --
-     这就是"扣费区与机器不在同一区"时服务端回 code=1 的根因. 提前拦下并给出可读的提示. */
+     这就是"切了石河子的卡却扫了默认区的机器"报错的根因. 提前拦下说人话. */
   /* chargeAreaId 与 S.areaId 必须是同一个 id 空间(数字), 不是 hex MERCHANT_AREA_ID.
      但只有"存在多个候选区"时才必须拿到 chargeId: 单卡账号没有选错的可能,
      硬闸只会把唯一能用的卡也挡掉. 判据见 need = 候选数 > 1. */
@@ -3675,6 +3693,8 @@ async function uRefreshOrderCard(){
     uSetCd(String(U.orderId), f.payLeft);
     f.payLeft = UO.cd[String(U.orderId)] ? UO.cd[String(U.orderId)].left : f.payLeft;
   }
+  /* 需求1: 按服务端账单时间自动建闹钟(去重在这里面做, 同一单同一时刻只设一次) */
+  try{ alAutoSync(f); }catch(e){}
   if(CUR === 'laundry') paint();
   return f;
 }
@@ -3814,6 +3834,8 @@ async function uTickQuiet(){
   if(!d) return;
   var f = uFmt(d);
   U.lastOrder = f;
+  /* 需求1: 轮询是拿到"服务端完成时刻"的主要通道, 每轮都过一遍自动设闹钟 */
+  try{ alAutoSync(f); }catch(e){}
   var key = JSON.stringify(f);
   if(key !== UPoll.last){ UPoll.last = key; if(CUR==='laundry') paint(); }
   var n2 = Number(f.stNum);
@@ -3827,7 +3849,8 @@ async function uTickQuiet(){
       if(CUR==='laundry') paint();
       return;
     }
-    /* 终态(完成/超时未支付/取消/退款)按事实收起当前订单卡 */
+    /* 终态(超时未支付/取消/退款/故障)按事实收起当前订单卡, 并把没响的闹钟撤掉 */
+    try{ alAutoDrop(f, U_ORD_ST[n2] || f.st); }catch(e){}
     if(U.curOrd){
       var ck = (Number(f.deviceTypeId) === 4) ? 'shoe' : 'wash';
       delete U.curOrd[ck];
@@ -4160,6 +4183,15 @@ function uAlarmById(id){
   else (UO.items || []).forEach(function(o){ if(String(o.orderId || o.id) === String(id)) st = Number(o.status); });
   if(st === 30 || st === 40 || st === 24){
     var f = det ? uFmt(det) : null;
+    /* 需求1: 优先用账单里的绝对完成时刻, 没有绝对时刻才退回 remain */
+    var atEnd = f ? alEndOf(f) : null;
+    if(atEnd){
+      alSetBoth(atEnd,
+        (f && Number(f.deviceTypeId) === 4 ? '洗鞋完成提醒' : '洗衣完成提醒'),
+        'U净订单 ' + id,
+        (f && Number(f.deviceTypeId) === 4 ? 'shoe_' : 'wash_') + id, false);
+      return;
+    }
     left = (f && f.remain != null) ? Number(f.remain) : -1;
   }else if(st === 10){
     var c = UO.cd[String(id)];
@@ -4526,6 +4558,11 @@ function pageWater(host){
     /* 出水主按钮占满一行加大(用户要求删"停轮询"并扩大出水键). */
     /* 按钮恒为"开水": 出水过程不要有第二个状态词, 用户只认这一个动作.
        花费/结束提示交给 toast 与日志, 不占据按钮文字. */
+    /* 需求2: 高频连点出水键会让饮水机的"占用"标记卡住, 切官方后端同样复现, 属设备侧问题.
+       这里只加一行文字提醒, 不加任何点击冷却或时间限制 -- 加了会拖慢正常取水,
+       用户明确要求"能无感修复优先, 影响体验就只保留文字提醒". */
+    h += '<div class="sub" style="color:var(--warn,#d29922);margin:0 0 6px;line-height:1.5">'
+      + '提示: 连续多次点击出水键可能造成饮水机系统短时卡死. 卡住时等约 1 分钟会自动恢复, 不必反复点.</div>';
     h += '<button class="btn-p" id="wGo" style="width:100%;margin-top:10px;height:auto;min-height:52px;line-height:1.3;white-space:normal;padding:12px;font-size:18px;font-weight:700">开水</button>';
     h += '<div class="sub">出水后按升计费, 放完自动结束并扣款.</div>';
     h += '</div>';
@@ -5104,10 +5141,13 @@ function askPerm(kind){
 /* ============================================================
    6.6 更新: 镜像优先, 直连兜底
    ============================================================ */
-/* 仓库已按用户要求删除, 版本从 1.0.0 重新算. */
-var APP_VER = '1.0.0';
+var APP_VER = '1.1.0';
 var VER_KEY = 'hz_ver_v10';
-var REPO = '';
+/* GitHub 仓库(owner/repo). 更新源与"源码仓库"都靠它拼地址.
+   发版时把按架构打的包传到 Release, 名字要对上 updApkName() 的返回值. */
+var REPO = 'Zoburor/hz-water';
+var REPO_URL = 'https://github.com/' + REPO;
+var REPO_LIC = '个人学习与交流许可 v1.0';
 
 /* 更新源按顺序尝试: 国内镜像优先, 然后 GitHub 直连, 最后走 cdn 中转 */
 /* 按机型适配: 原生 deviceInfo() 给出 ABI, 优先取该架构的包名,
@@ -5164,7 +5204,9 @@ function buildSources(){
 var UPDATE_SOURCES = buildSources();
 function updRebuild(){ UPDATE_SOURCES = buildSources(); }
 
-var UPD = { lastCheck:0, checking:false, results:{}, done:false };
+/* state 只活在内存里: 退出应用回到 idle, 按钮文字回到"检查更新" */
+var UPD = { lastCheck:0, checking:false, results:{}, done:false,
+            state:'idle', remote:'', msg:'', remoteMeta:null };
 
 function verLoad(){
   try{
@@ -5193,44 +5235,275 @@ function cmpVer(a, b){
 /* 更新前必须先拿到远端版本号并比对.
    之前是探测到哪个源能下就直接下, 结果"已经是最新了还要下一遍 350MB".
    现在: 先读远端 tag -> cmpVer 比 -> 不新就直接结束, 一个字节都不下. */
-function checkUpdate(){
-  if(!REPO){
-    alertBox('还没配更新地址',
-      '仓库已经按你的要求删掉了, 现在没有发布地址, 更新链路是空的.<br>' +
-      '等你说可以发的时候再建仓库并填回来.');
+/* 版本号从哪读: 手机侧访问 api.github.com 会 504(实测), 所以先试四个能读到
+   docs/version.json 的通道, 全都失败才回落到 GitHub API.
+   顺序按"国内可达性"排: ghfast 镜像 -> gh-proxy 镜像 -> jsDelivr -> raw -> API. */
+function verSources(){
+  return [
+    { id:'vf-ghfast', name:'ghfast 镜像', url:'https://ghfast.top/https://raw.githubusercontent.com/' + REPO + '/main/docs/version.json' },
+    { id:'vf-ghp2',   name:'gh-proxy 镜像', url:'https://gh-proxy.com/https://raw.githubusercontent.com/' + REPO + '/main/docs/version.json' },
+    { id:'vf-jsdelivr', name:'jsDelivr CDN', url:'https://cdn.jsdelivr.net/gh/' + REPO + '@main/docs/version.json' },
+    { id:'vf-raw',    name:'GitHub raw', url:'https://raw.githubusercontent.com/' + REPO + '/main/docs/version.json' }
+  ];
+}
+
+/* 依次试, 第一个解析出 version 的算数. 全程只读一个几百字节的 JSON, 不下载安装包.
+   两个限时都要有, 否则"检查更新"会看起来永远在转:
+   - 单源 5 秒: 原生 http 的 readTimeout 是 25 秒, 四个源串行最坏 100 秒以上;
+   - 整体 22 秒: 万一 promise 永远不 resolve(原生回调丢了), 也要给出结论.
+   注意 nreq 没有取消能力, 超时只是提前放行, 底层请求自己会按 25 秒收尾. */
+var VER_TIMEOUT_ONE = 5000;
+var VER_TIMEOUT_ALL = 22000;
+
+function verRace(pr, ms){
+  return new Promise(function(resolve){
+    var done = false;
+    var t = setTimeout(function(){
+      if(done) return; done = true;
+      resolve({ status:0, text:'', err:'超时 ' + Math.round(ms / 1000) + ' 秒' });
+    }, ms);
+    pr.then(function(v){
+      if(done) return; done = true;
+      clearTimeout(t); resolve(v);
+    }, function(e){
+      if(done) return; done = true;
+      clearTimeout(t); resolve({ status:0, text:'', err:String(e) });
+    });
+  });
+}
+
+function fetchRemoteVer(done){
+  var list = verSources();
+  var i = 0;
+  var fired = false;
+  function finish(tag, err, meta){
+    if(fired) return; fired = true;
+    done(tag, err, meta);
+  }
+  var allT = setTimeout(function(){
+    finish(null, '整体超时 ' + Math.round(VER_TIMEOUT_ALL / 1000) + ' 秒, 4 个镜像都没给出结果');
+  }, VER_TIMEOUT_ALL);
+  function step(){
+    if(fired) return;
+    if(i >= list.length){
+      clearTimeout(allT);
+      finish(null, '四个镜像都没读到 version.json');
+      return;
+    }
+    var src = list[i++];
+    verRace(nreq('GET', src.url, { 'Accept':'application/json', 'Cache-Control':'no-cache' }, ''),
+            VER_TIMEOUT_ONE).then(function(r){
+      if(fired) return;
+      if(r && r.status >= 200 && r.status < 300 && r.text){
+        var j = jparse(r.text);
+        if(j && j.version){
+          log('版本号来自 ' + src.name + ': v' + j.version, 's');
+          clearTimeout(allT);
+          finish(String(j.version).replace(/^v/i, ''), null, j);
+          return;
+        }
+      }
+      log(src.name + ' 读版本失败: ' + (r ? (r.err || ('HTTP ' + r.status)) : '连不上'), 'w');
+      step();
+    });
+  }
+  step();
+}
+
+/* ---------- 检查更新: 只改按钮文字, 不弹窗 ----------
+   以前是: 点一下 -> toast"正在检查" + 查完 alertBox. 四个镜像逐个超时(每个 readTimeout
+   25 秒), 最坏要等 100 秒以上, 期间用户以为没反应又点一次, 就再弹一次"正在检查, 稍等",
+   看起来像"一直弹窗".
+   现在改成按钮自述状态, 状态纯内存(退出应用即回 idle):
+     idle      检查更新
+     checking  检查版本中...        (按钮禁用, 不弹任何东西)
+     latest    现在是最新版本
+     update    可用更新 vX.Y.Z 点击下载
+     error     检查失败 点击重试
+   只有 update 状态下再点一次才会真的下载. */
+/* ---------------------------------------------------------------
+   更新日志.
+   两份来源: 内置 CHANGELOG(随包走, 断网也能看) 与远端 version.json 的 notes
+   (改了文案不用发版). 有可用更新时摊远端那一版, 没有就摊当前这一版.
+   条目写作口径: 只写用户能感知的差别, 不写内部函数名与行号.
+   --------------------------------------------------------------- */
+var CHANGELOG = {
+  '1.1.0': { date:'2026-11-09', notes:[
+    '设置页与更新页直接显示更新日志: 有新版时摊开新版改了什么, 没有时摊开当前这版',
+    '装上新版后第一次打开会弹一次本次更新内容, 看过就不再弹',
+    '更新说明改成先读远端 version.json 的 notes, 读不到才用包里内置的那份'
+  ]},
+  '1.0.9': { date:'2026-11-09', notes:[
+    '闹钟时间基准改从服务器响应头取, 不再用本机时钟单独作准',
+    '闹钟页新增"时间基准"一行, 直接显示手机比服务器快或慢多少秒',
+    '"接口给的剩余"补上秒单位, 避免被当成分钟读'
+  ]},
+  '1.0.8': { date:'2026-11-09', notes:[
+    '修掉剩余时长被误判单位的问题: 剩余不足 10 分钟时闹钟此前会设到几小时后, 或一条都不设',
+    '订单取消或超时后自动撤销已登记的闹钟, 不再挂到点照响',
+    '系统时钟通道秒数过半进位到下一分钟, 宁可晚响不要早响'
+  ]},
+  '1.0.7': { date:'2026-11-09', notes:[
+    '开机重放: 开机到解锁这段也能补登记闹钟, 这是此前"有时不响"的主因',
+    '响铃改相对渐强, 不再改动系统闹钟音量档',
+    '新增"能不能响"自检: 精确闹钟 / 全屏通知 / 自启动白名单三项分开展示, 各带直达按钮'
+  ]},
+  '1.0.6': { date:'2026-11-09', notes:[
+    '检查更新不再弹窗, 直接改按钮文字: 检查版本中 / 现在是最新版本 / 可用更新 点击下载',
+    '状态只留在本次运行内, 退出应用再进来回到"检查更新"'
+  ]}
+};
+
+/* notes 可能是数组, 也可能是整段字符串, 两种都吃 */
+function clNotesOf(ver, meta){
+  var e = CHANGELOG[String(ver || '')] || null;
+  var out = { ver:String(ver || ''), date:'', notes:[] };
+  if(meta){
+    if(meta.released || meta.date) out.date = String(meta.released || meta.date);
+    var n = meta.notes || meta.changes || meta.log;
+    if(n){
+      if(Object.prototype.toString.call(n) === '[object Array]') out.notes = n.map(String);
+      else out.notes = String(n).split(/\n+/).filter(function(x){ return x.trim(); });
+    }
+  }
+  if(!out.notes.length && e){
+    out.notes = e.notes.slice();
+    if(!out.date) out.date = e.date;
+  }
+  return out;
+}
+
+function clHTML(ver, meta){
+  var o = clNotesOf(ver, meta);
+  if(!o.notes.length) return '';
+  var h = '<div class="card" style="margin-top:9px"><h2>更新日志 '
+    + badge('v' + (o.ver || '?')) + (o.date ? (' <span class="pill">' + esc(o.date) + '</span>') : '')
+    + '</h2>';
+  h += '<ul style="margin:4px 0 0 18px;padding:0">';
+  o.notes.forEach(function(x){
+    h += '<li style="margin:5px 0;line-height:1.55">' + esc(String(x)) + '</li>';
+  });
+  h += '</ul></div>';
+  return h;
+}
+
+/* 按钮下面那块: 有新版摊新版, 没有就摊当前这版 */
+function updPaintNotes(){
+  var box = $('updNotes');
+  if(!box) return;
+  var st = UPD.state || 'idle';
+  if(st === 'checking'){ box.innerHTML = ''; return; }
+  if(st === 'update' && UPD.remote){
+    box.innerHTML = clHTML(UPD.remote, UPD.remoteMeta);
     return;
   }
-  if(UPD.checking){ toast('正在检查, 稍等'); return; }
-  UPD.checking = true; UPD.results = {}; UPD.done = false;
+  box.innerHTML = clHTML(APP_VER, null);
+}
+
+var UPD_TEXT = {
+  idle:'检查更新',
+  checking:'检查版本中...',
+  latest:'现在是最新版本',
+  update:'可用更新 点击下载',
+  error:'检查失败 点击重试'
+};
+
+function updCheckLabel(){
+  if(UPD.state === 'update' && UPD.remote) return '可用更新 v' + UPD.remote + ' 点击下载';
+  return UPD_TEXT[UPD.state] || UPD_TEXT.idle;
+}
+
+/* 只重画按钮与说明, 不整体 paint(), 免得把页面滚动位置弹回去 */
+function updPaintCheck(){
+  var box = $('updCheckWrap');
+  if(!box) return;
+  var st = UPD.state || 'idle';
+  var cls = 'btn-b btn-f';
+  if(st === 'update') cls = 'btn-p';
+  if(st === 'latest') cls = 'btn-f';
+  if(st === 'error') cls = 'btn-f';
+  var dis = (st === 'checking') ? ' disabled' : '';
+  var op = (st === 'checking') ? ';opacity:.6' : '';
+  box.innerHTML = '<button class="' + cls + '" id="updCheck"' + dis
+    + ' style="width:100%' + op + '">' + esc(updCheckLabel()) + '</button>';
+  var b = $('updCheck');
+  if(b) b.onclick = updCheckTap;
+
+  var meta = $('updCheckMeta');
+  if(!meta) return;
+  var sub = '';
+  if(st === 'checking'){
+    sub = '正在读远端版本号: 依次试 4 个镜像, 全不通再回落 GitHub API. 慢是正常的, 不弹窗也不打断你.';
+  }else if(st === 'latest'){
+    /* 远端比本地旧也算 latest(没有可用更新), 所以不能一律写"一致". */
+    sub = (UPD.remote === APP_VER)
+      ? ('远端 v' + UPD.remote + ' 与本地 v' + APP_VER + ' 一致, 一个字节都没下.')
+      : ('远端 v' + UPD.remote + ' 不比本地 v' + APP_VER + ' 新, 一个字节都没下.');
+  }else if(st === 'update'){
+    sub = '远端 v' + UPD.remote + ' 比本地 v' + APP_VER + ' 新. 再点一次按钮才下载, 下完交给系统安装器.';
+  }else if(st === 'error'){
+    sub = UPD.msg || '没读到远端版本号, 过一会儿再点一次.';
+  }else{
+    sub = UPD.lastCheck ? ('上次检查 ' + ts2s(UPD.lastCheck)) : '还没查过';
+  }
+  meta.innerHTML = '<div class="sub" style="margin-top:6px">' + esc(sub) + '</div>';
+  updPaintNotes();
+}
+
+function updCheckTap(){
+  var st = UPD.state || 'idle';
+  if(st === 'checking') return;
+  if(st === 'update' && UPD.remote){ doUpdate(UPD.remote); return; }
+  checkUpdate();
+}
+
+function checkUpdate(){
+  if(!REPO){
+    UPD.state = 'error';
+    UPD.msg = '还没配仓库地址, 更新链路是空的.';
+    updPaintCheck();
+    return;
+  }
+  if(UPD.checking) return;
+  UPD.checking = true; UPD.state = 'checking'; UPD.msg = ''; UPD.results = {}; UPD.done = false;
+  updPaintCheck();
   log('先读远端版本号...');
-  nreq('GET', 'https://api.github.com/repos/' + REPO + '/releases/latest',
-       { 'Accept': 'application/vnd.github+json' }, '').then(function(r){
-    var j = jparse(r.text);
-    var tag = (j && j.tag_name) ? String(j.tag_name).replace(/^v/i, '') : null;
-    UPD.checking = false; UPD.done = true; UPD.lastCheck = Date.now(); verSave();
-    if(!tag){
-      log('读不到远端版本: ' + (r.err || ('HTTP ' + r.status)), 'w');
-      alertBox('查不到版本', '发布页拿不到 tag_name, 先不下载, 免得白下一遍.');
-      if(CUR === 'settings') paint();
-      return;
+  fetchRemoteVer(function(tag, err, meta){
+    function afterApi(){
+      UPD.checking = false; UPD.done = true; UPD.lastCheck = Date.now(); verSave();
+      if(!tag){
+        log('读不到远端版本: ' + err, 'w');
+        UPD.state = 'error';
+        UPD.msg = '四个镜像与 GitHub API 都没读到版本号: ' + String(err || '').slice(0, 120);
+        updPaintCheck();
+        return;
+      }
+      UPD.remote = tag;
+      UPD.remoteMeta = meta || null;
+      log('远端版本 v' + tag + ', 本地 v' + APP_VER);
+      if(cmpVer(tag, APP_VER) <= 0){
+        log('已经是最新的, 不下载', 's');
+        UPD.state = 'latest';
+        updPaintCheck();
+        return;
+      }
+      log('发现新版 v' + tag + ', 等用户点按钮再下载');
+      UPD.state = 'update';
+      updPaintCheck();
+      toast('有新版本 v' + tag + ', 点按钮下载');
     }
-    UPD.remote = tag;
-    log('远端版本 v' + tag + ', 本地 v' + APP_VER);
-    if(cmpVer(tag, APP_VER) <= 0){
-      log('已经是最新的, 不下载', 's');
-      toast('已经是最新的 v' + APP_VER);
-      if(CUR === 'settings') paint();
-      return;
-    }
-    /* 确认有新版本, 才开始探源 + 下载 */
-    log('发现新版 v' + tag + ', 开始探源');
-    alertBox('有新版本 v' + tag,
-      '本地 v' + APP_VER + '. 现在下载并安装?',
-      [{ label:'下载并安装', cls:'btn-b', fn:function(){ closeModal(); doUpdate(tag); } },
-       { label:'取消' }]);
-    if(CUR === 'settings') paint();
+    if(tag){ afterApi(); return; }
+    log('镜像都失败, 回落到 GitHub API', 'w');
+    nreq('GET', 'https://api.github.com/repos/' + REPO + '/releases/latest',
+         { 'Accept': 'application/vnd.github+json' }, '').then(function(r){
+      var j = jparse(r.text);
+      tag = (j && j.tag_name) ? String(j.tag_name).replace(/^v/i, '') : null;
+      if(!tag) err = (err || '') + ' / API ' + (r.err || ('HTTP ' + r.status));
+      afterApi();
+    }, function(){
+      afterApi();
+    });
   });
-  setTimeout(function(){ if(CUR === 'settings') paint(); }, 300);
 }
 
 /* 用原生 HTTP 发一个 Range: bytes=0-1 的小请求, 只看状态码与 Content-Length */
@@ -5238,6 +5511,8 @@ function checkUpdate(){
 function doUpdate(tag){
   if(!HASNATIVE){ toast('网页版不能自己装包'); return; }
   UPD.checking = true; UPD.results = {};
+  UPD.state = 'idle'; UPD.msg = '';
+  updPaintCheck();
   var left = UPDATE_SOURCES.length;
   var urls = [];
   log('探测 ' + UPDATE_SOURCES.length + ' 个源');
@@ -5253,10 +5528,35 @@ function doUpdate(tag){
         log('开始下载 v' + tag + ', ' + urls.length + ' 个源');
         window.__hzCb['upd'] = function(x){
           log('下载结果: ' + JSON.stringify(x), x && x.ok ? 's' : 'w');
-          if(!x || !x.ok){ toast('下载失败'); }
+          /* 缺"安装未知应用"权限: 包已经下好了, 只差授权. 之前这个分支根本没人接,
+             因为原生侧的 reqId 是 null, 提示被静默丢弃 -> 用户看到"下载完了没反应". */
+          if(x && x.needInstallPerm){
+            window.__hzPendingInstall = 'updp';
+            window.__hzCb['updp'] = function(y){
+              log('续装结果: ' + JSON.stringify(y), y && y.ok ? 's' : 'w');
+              if(y && y.ok) toast('已拉起安装器');
+              else if(y && y.needInstallPerm) toast('还是没给安装权限, 在设置里打开后再点"检查更新"');
+              else toast('安装没起来, 稍后再试');
+              paint();
+            };
+            toast('包已下好, 先去打开"允许安装未知应用"');
+            try{ window.HzNative.installPerm('permi'); }
+            catch(e){ log('打不开安装授权页: ' + e.message, 'w'); }
+            paint();
+            return;
+          }
+          if(x && x.ok){
+            toast(x.launched ? '已拉起安装器' : '已下载, 点安装完成升级');
+          }else{
+            toast('下载失败, 换一个源再试');
+          }
           paint();
         };
-        try{ window.HzNative.updateFrom('upd', urls.join(',')); }
+        try{
+          try{ window.HzNative.updateClear(); }catch(e0){}
+          updPollStart();
+          window.HzNative.updateFrom('upd', urls.join(','));
+        }
         catch(e){ log('调 updateFrom 失败: ' + e.message, 'r'); }
         paint();
       }
@@ -5281,9 +5581,138 @@ function probeHead(url, cb){
   });
 }
 
+/* ---------- 需求5a: 下载进度 ----------
+   原生 UpdateTask 一直在写静态快照(phase/got/total/srcIndex/...), 页面每 400ms 拉一次
+   HzNative.updateProgress() 画进度条. 不用 __hzCb 回调, 因为 deliver() 是一次性的,
+   拿它推进度会立刻把回调删掉. */
+var UPD_POLL = { t:0, lastGot:0, lastAt:0, bps:0 };
+
+function updFmtSize(n){
+  n = Number(n) || 0;
+  if(n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+  if(n >= 1024) return (n / 1024).toFixed(0) + ' KB';
+  return n + ' B';
+}
+
+function updPhaseText(p){
+  if(p === 'probe') return '正在探测下载源';
+  if(p === 'download') return '正在下载';
+  if(p === 'verify') return '正在校验安装包';
+  if(p === 'install') return '已下好, 正在拉起安装器';
+  if(p === 'fail') return '下载失败';
+  return '空闲';
+}
+
+/* 只重画进度卡内部, 不整体 paint(), 避免打断用户操作 */
+function updPaintProg(){
+  var box = $('updProg');
+  if(!box) return;
+  var p = null;
+  try{ if(HASNATIVE && window.HzNative.updateProgress) p = JSON.parse(window.HzNative.updateProgress() || 'null'); }catch(e){ p = null; }
+  if(!p){ box.innerHTML = '<div class="empty">原生下载器不可用(网页版)</div>'; return; }
+
+  var got = Number(p.got) || 0;
+  var total = Number(p.total);
+  var hasTotal = total > 0;
+  var pct = hasTotal ? Math.min(100, Math.floor(got * 100 / total)) : 0;
+  var phase = p.phase || 'idle';
+  var now = Date.now();
+  if(UPD_POLL.lastAt && now > UPD_POLL.lastAt && got >= UPD_POLL.lastGot){
+    var dt = now - UPD_POLL.lastAt;
+    var db = got - UPD_POLL.lastGot;
+    if(dt >= 250){
+      var b = db * 1000 / dt;
+      UPD_POLL.bps = UPD_POLL.bps ? Math.round(UPD_POLL.bps * 0.6 + b * 0.4) : b;
+      UPD_POLL.lastAt = now; UPD_POLL.lastGot = got;
+    }
+  }else if(!UPD_POLL.lastAt){ UPD_POLL.lastAt = now; UPD_POLL.lastGot = got; }
+
+  var h = '';
+  h += '<div class="row" style="justify-content:space-between;align-items:baseline">'
+    + '<b style="font-size:15px">' + esc(updPhaseText(phase)) + '</b>'
+    + '<span class="pill">' + (hasTotal ? (pct + '%') : (phase === 'download' ? '总大小未知' : '—')) + '</span></div>';
+  h += '<div class="pbar' + (phase === 'install' ? ' done' : '') + '">'
+    + '<i style="width:' + (hasTotal ? Math.max(2, pct) : (phase === 'download' ? 6 : (phase === 'idle' ? 0 : 30))) + '%"></i></div>';
+  if(phase === 'download' || phase === 'verify' || got > 0){
+    h += '<div class="sub" style="margin:2px 0 6px">'
+      + esc(updFmtSize(got)) + (hasTotal ? (' / ' + esc(updFmtSize(total))) : '')
+      + (UPD_POLL.bps > 0 && phase === 'download' ? (' · ' + esc(updFmtSize(UPD_POLL.bps)) + '/s') : '')
+      + '</div>';
+  }
+  if(p.srcCount){
+    h += '<div class="sub" style="margin:0 0 6px">源 ' + (Number(p.srcIndex) + 1) + '/' + Number(p.srcCount)
+      + (p.url ? (' · <span style="word-break:break-all">' + esc(p.url) + '</span>') : '') + '</div>';
+  }
+  if(phase === 'fail' && p.err) h += '<div class="sub" style="color:var(--danger)">' + esc(p.err) + '</div>';
+  if(phase === 'idle' && p.err) h += '<div class="sub">上一次: ' + esc(p.err) + '</div>';
+
+  h += '<div class="row" style="margin-top:9px">'
+    + '<button class="btn-b btn-f" id="updDir">打开下载目录</button>'
+    + '<button class="btn-f" id="updRepo">打开项目仓库</button></div>';
+  h += '<div class="sub">安装包下到应用缓存目录, 点"打开下载目录"会在公共"下载"里放一份并跳过去, '
+    + '找不到时退回到系统的下载界面.</div>';
+
+  box.innerHTML = h;
+  if($('updDir')) $('updDir').onclick = openDownloadDir;
+  if($('updRepo')) $('updRepo').onclick = function(){ openUrl(REPO_URL); };
+}
+
+function updPollStart(){
+  updPollStop();
+  UPD_POLL.lastAt = 0; UPD_POLL.lastGot = 0; UPD_POLL.bps = 0;
+  updPaintProg();
+  UPD_POLL.t = setInterval(function(){
+    var p = null;
+    try{ if(HASNATIVE && window.HzNative.updateProgress) p = JSON.parse(window.HzNative.updateProgress() || 'null'); }catch(e){ p = null; }
+    updPaintProg();
+    if(p && !p.running && (p.phase === 'install' || p.phase === 'fail' || p.phase === 'idle')){
+      updPollStop();
+    }
+  }, 400);
+}
+
+function updPollStop(){
+  if(UPD_POLL.t){ clearInterval(UPD_POLL.t); UPD_POLL.t = 0; }
+}
+
+/* 需求5b: 跳系统下载目录. 原生三级策略, 返回 ok 或失败原因. */
+function openDownloadDir(){
+  if(!HASNATIVE || !window.HzNative.openDownloadDir){ toast('这个环境没有下载目录'); return; }
+  var k = 'od' + (++cbSeq);
+  window.__hzCb[k] = function(r){
+    delete window.__hzCb[k];
+    if(r && r.ok){
+      toast(r.copied ? ('已放到下载: ' + (r.path || '')) : '已打开下载目录');
+      return;
+    }
+    alertBox('没能打开下载目录',
+      '原因: ' + esc((r && r.err) || '系统没有响应')
+      + (r && r.path ? ('<br>安装包实际位置: <span style="word-break:break-all">' + esc(r.path) + '</span>') : '')
+      + (r && r.allFiles === false ? '<br>要放到公共下载目录需要"所有文件访问"权限, 可以在设置里打开后重试.' : ''));
+  };
+  try{ window.HzNative.openDownloadDir(k); }
+  catch(e){ toast('打开失败: ' + (e && e.message)); }
+}
+
 /* 真正下载: 按顺序试, 第一个成功的交给原生下载器 */
 function pageUpdate(host){
   updLoadDev(); updRebuild();
+  /* 仓库与发行版: 更新走 Release 资产, 用户要能自己去看改了什么. */
+  if(REPO){
+    var rel = REPO_URL + '/releases';
+    host.insertAdjacentHTML('afterbegin',
+      '<div class="card"><h2>仓库</h2>'
+      + kvH('源码', '<a href="#" data-openurl="' + esc(REPO_URL) + '" '
+           + 'style="color:var(--accent);word-break:break-all">' + esc(REPO_URL) + '</a>')
+      + kvH('发行版', '<a href="#" data-openurl="' + esc(rel) + '" '
+           + 'style="color:var(--accent);word-break:break-all">' + esc(rel) + '</a>')
+      + kv('许可', REPO_LIC + '(不可商用)')
+      + '<div class="sub">更新包从发行版附件下载; 每个架构一个包, 页面自动挑本机那个.</div>'
+      + '</div>');
+    host.querySelectorAll('[data-openurl]').forEach(function(a){
+      a.onclick = function(e){ e.preventDefault(); openUrl(a.getAttribute('data-openurl')); };
+    });
+  }
   var d = UPD_DEV || {};
   var h = '';
   h += '<div class="card"><h2>本机 <span class="pill">按机型选包</span></h2>';
@@ -5295,14 +5724,19 @@ function pageUpdate(host){
   h += '<div class="sub">有专门为你这个 CPU 架构打的包就优先下它; 没有就下通用包, 通用包在所有架构上都能跑.</div>';
   h += '</div>';
 
+  /* 按钮文字由 updPaintCheck() 按 UPD.state 渲染, 这里只留容器 */
   h += '<div class="card"><h2>版本 ' + badge(APP_VER) + '</h2>';
   h += kv('当前版本', APP_VER);
-  h += kv('上次检查', UPD.lastCheck ? ts2s(UPD.lastCheck) : '没查过');
-  h += '<div class="row" style="margin-top:9px">'
-    + '<button class="btn-b btn-f" id="updCheck">检查更新</button></div>';
+  h += '<div id="updCheckWrap" style="margin-top:9px"></div>';
+  h += '<div id="updCheckMeta"></div>';
+  h += '<div id="updNotes"></div>';
   h += '<div class="sub">先读远端版本号比对: 已经是最新就到此为止, 一个字节都不下. '
     + '确认有新版本才去探测镜像并下载, 下完交给系统安装器.</div>';
   h += '</div>';
+
+  h += '<div class="card"><h2>下载 <span class="pill">实时进度</span></h2>'
+    + '<div id="updProg"></div>'
+    + '</div>';
 
   h += '<div class="card"><h2>更新源顺序 <span class="pill">镜像优先</span></h2>';
   UPDATE_SOURCES.forEach(function(src, i){
@@ -5329,7 +5763,12 @@ function pageUpdate(host){
     + '</div></div>';
 
   host.innerHTML = h;
-  if($('updCheck')) $('updCheck').onclick = checkUpdate;
+  updPaintProg();
+  try{
+    var pp = HASNATIVE && window.HzNative.updateProgress ? JSON.parse(window.HzNative.updateProgress() || 'null') : null;
+    if(pp && pp.running) updPollStart();
+  }catch(e){}
+  updPaintCheck();
   host.querySelectorAll('[data-updcopy]').forEach(function(el){
     el.onclick = function(){
       var v = el.getAttribute('data-updcopy') || '';
@@ -5923,7 +6362,202 @@ function alDel(tag){
   alSave();
 }
 
+/* ---------------- 账单时间 -> 闹钟时刻(需求1) ----------------
+
+   为什么以 end 为主: 账单里 washEndTime/endTime/finishTime 是服务端算好的绝对完成时刻,
+   直接拿来设闹钟最准. remain 只是"还剩多少", 页面每 5 秒轮询一次, 每次拿 remain 重算
+   都会把闹钟往后推, 越推越不准, 这就是过去"设了但响不准"的一个来源.
+
+   单位: 官方 orderDetail 的 count-down 组件 hour = count/3600, 所以 remainTime 是秒.
+   但为防接口改动, 这一层仍做单位判定, 判据改成"两次轮询的下降速率", 见 remainUnit().
+   绝不能按数值大小猜 -- 短单(洗鞋 5-8 分钟)的秒数很小, 会被误判成分钟.
+   ============================================================ */
+var AL_AUTO_KEY = 'hz_alarms_auto_v1';
+var AL_AUTO = {};
+
+function alAutoLoad(){
+  try{
+    var o = JSON.parse(localStorage.getItem(AL_AUTO_KEY) || '{}');
+    if(o && typeof o === 'object') AL_AUTO = o;
+  }catch(e){ AL_AUTO = {}; }
+}
+function alAutoSave(){
+  try{ localStorage.setItem(AL_AUTO_KEY, JSON.stringify(AL_AUTO)); }catch(e){}
+}
+
+/* remain 的单位判定.
+
+   官方 orderDetail 的 count-down 组件把 remainTime 直接喂给 count,
+   内部 hour = count/3600, 所以服务端给的是**秒**. 但过去这里按"数值 >600 才当秒"
+   猜单位, 结果 10 分钟以内的短单(洗鞋 5-8 分钟)全被当成分钟:
+   remainTime=300(真实 5 分钟) 会被算成 300 分钟, 闹钟晚响将近 5 小时;
+   remainTime=480 更会被后面 mm<480 的判据挡掉, 干脆一条都不设.
+
+   不靠猜数值大小, 靠**两次轮询之间的下降速率**判定:
+   5 秒内掉了约 5 -> 秒; 掉了约 0.08 -> 分钟. 第一次没有历史时按秒(有官方代码为证). */
+/* remainTime 是秒. 依据: 官方 orderDetail.js 的 count-down 组件
+   data: { hour: this.count/3600, min: ..., sec: ... }, 调用处 count: Number(info.remainTime)||0.
+   所以这里只做一次除法, 不再按数值大小猜单位. */
+
+function remainMinutes(raw, oid){
+  if(raw === null || raw === undefined || raw === '') return null;
+  if(typeof raw === 'number'){
+    return raw / 60;   /* 秒 -> 分 */
+  }
+  var s = String(raw).trim();
+  var m = s.match(/(\d+)\s*分/);
+  if(m) return Number(m[1]);
+  m = s.match(/(\d+)\s*秒/);
+  if(m) return Math.ceil(Number(m[1]) / 60);
+  m = s.match(/^(\d+):(\d+)$/);
+  if(m) return Number(m[1]) + Number(m[2]) / 60;
+  m = s.match(/^(\d+)$/);
+  if(m){
+    return Number(m[1]) / 60;   /* 秒 -> 分 */
+  }
+  return null;
+}
+
+/* 账单 -> 绝对完成时刻(ms). 优先绝对 end, 拿不到才用 remain 相对推算 */
+function alEndOf(f){
+  if(!f) return null;
+  if(f.end){
+    var t = uFmtTime(f.end);
+    var m = String(t || '').match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})$/);
+    if(m){
+      var d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]),
+                       Number(m[4]), Number(m[5]), 0, 0);
+      var ms = d.getTime();
+      /* washEndTime 是服务器坐标系的绝对时刻, 先减 skew 换到设备坐标系再登记.
+         不减的话手机时钟一偏, 闹钟就额外偏同样的量. */
+      if(!isNaN(ms)){
+        var devMs = ms - SRV_SKEW;
+        /* 明显不合理的过去时间(接口给了已完成单的旧 end)不用 */
+        if(devMs > Date.now() - 60000 && devMs < Date.now() + 8 * 3600 * 1000) return devMs;
+      }
+    }
+  }
+  var mm = remainMinutes(f.remain, f.orderId || U.orderId);
+  /* 上限放到 12 小时. 老的 480(8 小时)是为了挡住"秒被当成分钟"的脏值 --
+     那种脏值动辄几百上千分钟. 单位判定修好之后, 这个上限只剩"别设到明天"的意义. */
+  /* remain 是"还剩多少秒"这个纯时长, 与任何时钟的读数无关 -- 直接加在本机时刻上.
+     这一路不受手机时钟准不准影响, 是主路径. */
+  if(mm != null && mm > 0 && mm < 720) return Date.now() + Math.round(mm) * 60000;
+  return null;
+}
+
+/* 该单是否还需要闹钟: 只有"正在跑/自洁/投放/已支付待启动"才需要 */
+function alNeedFor(f){
+  if(!f) return false;
+  var n = Number(f.stNum);
+  if(n === 30 || n === 40 || n === 24 || n === 21 || n === 22 || n === 35) return true;
+  if(n === 10) return false;          /* 待支付: 不设完成闹钟, 免得没付钱就响 */
+  if(n >= 50) return false;           /* 已终态 */
+  return false;
+}
+
+/* 订单类型: 4 = 洗鞋, 其他按洗衣. 用于区分标题(需求1 明确要求按洗衣/洗鞋分别创建) */
+function alKindOf(f){
+  return Number(f && f.deviceTypeId) === 4 ? 'shoe' : 'wash';
+}
+
+/* 自动设置: 一次账单同步里调用. 同一单同一时刻只设一次, 不重复登记. */
+function alAutoSync(f){
+  if(!f) return;
+  if(!alNeedFor(f)) return;
+  var oid = f.orderId || U.orderId;
+  if(!oid) return;
+  var at = alEndOf(f);
+  if(!at) return;
+  var kind = alKindOf(f);
+  var tag = kind + '_' + oid;
+  /* 时刻变化小于 60 秒视为同一次, 不重设(避免轮询每 5 秒重置闹钟) */
+  var old = AL_AUTO[String(oid)];
+  if(old && Math.abs(Number(old.at) - at) < 60000) return;
+  var isShoe = kind === 'shoe';
+  var title = isShoe ? '洗鞋完成提醒' : '洗衣完成提醒';
+  var text = (isShoe ? '鞋机 ' : '洗衣机 ') + (f.dev || '') + ' 这单快结束了';
+  AL_AUTO[String(oid)] = { at: at, kind: kind, sent: 0 };
+  alAutoSave();
+  log('按账单时间自动设闹钟: ' + title + ' @ ' + new Date(at).toLocaleString(), 's');
+  alSetBoth(at, title, text, tag, true);
+}
+
+/* 订单进入"没意义"的终态(取消/启动失败/超时/故障)时, 撤掉还没响的自动闹钟.
+   原来只有用户手动删提醒才会 cancelAlarm, 订单被取消后那条闹钟会一直挂着,
+   到点照样响 -- 用户看到的就是"机器没洗却提醒我洗完了".
+
+   注意 50(订单完成) 不撤: 那正是这条闹钟要报的事, 撤了就白设了. */
+function alAutoDrop(f, why){
+  if(!f) return;
+  var oid = f.orderId || U.orderId;
+  if(!oid) return;
+  var rec = AL_AUTO[String(oid)];
+  if(!rec) return;
+  delete AL_AUTO[String(oid)];
+  alAutoSave();
+  var tag = (rec.kind || 'wash') + '_' + oid;
+  alDel(tag);
+  if(HASNATIVE && window.HzNative.cancelAlarm){
+    try{ window.HzNative.cancelAlarm('ac' + (++cbSeq), tag); }catch(e){}
+  }
+  log('订单进入终态(' + (why || '已结束') + '), 撤掉自动闹钟 ' + tag, 's');
+}
+
 /* 把"洗衣剩余 N 分钟"换算成触发时刻; 拿不到剩余时间就给一个可改的默认值 */
+/* 站内提醒: 到点弹网页通知 + 页面 toast. 页面关了就不管, 但会如实写进日志. */
+var WEBAL = {};
+function webRemind(at, title, text){
+  var ms = at - Date.now();
+  if(ms <= 0) return;
+  if(ms > 2147483000) ms = 2147483000;
+  var key = 'w' + at;
+  if(WEBAL[key]) clearTimeout(WEBAL[key]);
+  WEBAL[key] = setTimeout(function(){
+    delete WEBAL[key];
+    webNotify(title, text);
+    toast(title + ': ' + text);
+    log('站内提醒到点: ' + title, 's');
+    var np = ('Notification' in window) ? Notification.permission : 'none';
+    if(np !== 'granted') log('只有页面内提示, 想让系统也弹就得给通知权限', 'w');
+  }, ms);
+  if('Notification' in window && Notification.permission === 'default') notifyAsk(function(){});
+}
+
+/* 原生闹钟界面在锁屏/前台被点掉时页面是冻结的, 没法直接回调 JS.
+   原生存一条 pending 事件(off:<tag> / snooze:<tag>), 页面每 2 秒取一次. */
+var AL_POLL_T = 0;
+function alPollEvent(){
+  if(!HASNATIVE || !window.HzNative.alarmEvent) return;
+  var ev = '';
+  try{ ev = String(window.HzNative.alarmEvent() || ''); }catch(e){ return; }
+  if(!ev) return;
+  var i = ev.indexOf(':');
+  var kind = i < 0 ? ev : ev.slice(0, i);
+  var tag = i < 0 ? '' : ev.slice(i + 1);
+  if(kind === 'off'){
+    if(tag) alDel(tag);
+    log('闹钟已关闭' + (tag ? (': ' + tag) : ''), 's');
+    if(PAGE_STACK.length) paint();
+  }else if(kind === 'snooze'){
+    log('闹钟已推迟 5 分钟' + (tag ? (': ' + tag) : ''), 's');
+    if(tag){
+      AL.list.forEach(function(a){ if(a.tag === tag) a.at = Date.now() + 5 * 60000; });
+      alSave();
+    }
+    toast('5 分钟后再响');
+    if(PAGE_STACK.length) paint();
+  }
+}
+function alPollStart(){
+  alPollStop();
+  if(!HASNATIVE || !window.HzNative.alarmEvent) return;
+  AL_POLL_T = setInterval(alPollEvent, 2000);
+}
+function alPollStop(){
+  if(AL_POLL_T){ clearInterval(AL_POLL_T); AL_POLL_T = 0; }
+}
+
 function guessRemainMin(){
   var f = U.lastOrder || {};
   var raw = f.remain;
@@ -5941,24 +6575,104 @@ function guessRemainMin(){
 
 function pageAlarm(host){
   var h = '';
-  h += '<div class="card"><h2>设闹钟</h2>';
-  var rem = guessRemainMin();
+  var f = U.lastOrder || null;
+  var atEnd = f ? alEndOf(f) : null;
+  var remMin = f ? remainMinutes(f.remain, f.orderId || U.orderId) : null;
+
+  h += '<div class="card"><h2>设闹钟 <span class="pill">系统时钟优先</span></h2>';
   h += kv('当前订单', U.orderId || '没有');
-  h += kv('接口给的剩余', (U.lastOrder && U.lastOrder.remain) || '未取到');
+  h += kv('账单完成时刻', atEnd ? new Date(atEnd).toLocaleString() : '账单里没有可用的完成时刻');
+  h += kv('接口给的剩余', (f && f.remain != null) ? (String(f.remain) + ' 秒' + (remMin != null ? (' (约 ' + Math.round(remMin) + ' 分钟)') : '')) : '未取到');
+  /* 时间基准: 到点时刻按"服务器现在 + 服务端剩余秒"算, 手机时钟偏多少都不影响.
+     这一行把两边的差摆出来, 偏差也不用猜. */
+  var skewSec = Math.round(SRV_SKEW / 1000);
+  h += kv('时间基准', SRV_SKEW_OK
+    ? ('服务器剩余秒 + 本机时刻 (手机' + (skewSec === 0 ? '与服务器一致' : (skewSec > 0 ? '慢 ' + skewSec + ' 秒' : '快 ' + (-skewSec) + ' 秒')) + ')')
+    : '本机时刻 (还没跟服务器对过表)');
   h += '<div class="row" style="margin-top:9px">'
     + '<input id="alMin" inputmode="numeric" placeholder="还有多少分钟" value="'
-    + esc(rem !== null ? String(rem) : '35') + '"></div>';
+    + esc(atEnd ? String(Math.max(1, Math.round((atEnd - Date.now()) / 60000)))
+                : (remMin != null ? String(Math.max(1, Math.round(remMin))) : '35')) + '"></div>';
   h += '<div class="row">'
-    + '<button class="btn-p btn-f" id="alSet">设本应用闹钟</button>'
-    + '<button class="btn-b btn-f" id="alClock">试走系统时钟</button></div>';
+    + '<button class="btn-p btn-f" id="alSet">设闹钟(系统时钟 + 应用内)</button></div>';
+  h += '<div class="row">'
+    + '<button class="btn-b btn-f" id="alClock">只走系统时钟</button>'
+    + '<button class="btn-f" id="alAppOnly">只走应用内</button></div>';
   h += '<div class="row"><button class="btn-f" id="alTest">试响一次(10 秒后)</button></div>';
-  h += '<div class="sub">"设本应用闹钟"用 AlarmManager.setAlarmClock 登记时刻, 到点由本应用的'
-    + '前台服务响起闹钟铃声(循环)并震动 -- 这一路在后台与锁屏下都能工作, 系统不会掐断. '
-    + '同时会尝试弹全屏闹钟界面; 部分机型(实测小米)会拦下"后台弹出界面", 此时界面'
-    + '不会自动出现, 但铃声与震动照常, 拉下通知栏点那条提醒即可看到界面. '
-    + '"试走系统时钟"是排查用的备用路径: 走 SET_ALARM Intent 打开自带时钟并预填, '
-    + '若该品牌缺 SET_ALARM 权限会失败, 失败会自动回落到本应用闹钟.</div>';
+  h += '<div class="sub">默认同时登记两条通道: <b>系统时钟</b>(厂商闹钟 App 持有, 本应用被后台清理也照响)'
+    + ' + <b>应用内闹钟</b>(AlarmManager.setAlarmClock 兜底). '
+    + '订单在跑的时候不用手动点, 页面会按账单里的完成时刻自动建一次, 同一单不会重复建.</div>';
   h += '</div>';
+
+  /* 本机时钟 App 探测: 各家系统时钟不一样, 这里照实列出这台机器能接 SET_ALARM 的 App,
+     让"这条通道到底通不通"有据可查, 不用靠猜. */
+  var clockApps = null;
+  if(HASNATIVE && window.HzNative.alarmApps){
+    try{ clockApps = JSON.parse(window.HzNative.alarmApps() || '{}'); }catch(e){ clockApps = null; }
+  }
+  h += '<div class="card"><h2>本机时钟 <span class="pill">'
+    + (clockApps ? (Number(clockApps.count) + ' 个可用') : '网页版') + '</span></h2>';
+  if(!HASNATIVE){
+    h += '<div class="empty">网页版没有系统闹钟, 只能用站内提醒</div>';
+  }else if(!clockApps || !clockApps.apps || !clockApps.apps.length){
+    h += '<div class="sub" style="color:var(--warn,#d29922)">这台机器上没有查到能接系统闹钟的时钟 App. '
+      + '系统闹钟通道会走不通, 只能靠应用内闹钟; 请确认系统的"时钟"应用没有被卸载或停用.</div>';
+  }else{
+    h += clockApps.apps.map(function(a){
+      return '<div class="mirror"><b>' + esc(a.label || a.pkg) + '</b>'
+        + '<em class="on">可接</em></div>';
+    }).join('');
+    h += '<div class="sub">这些是响应标准 SET_ALARM 的时钟 App. 设闹钟时按"原厂时钟优先"的顺序挑一个静默登记; '
+      + '个别品牌不认静默参数, 会弹一下时钟界面让你确认, 这是正常现象.</div>';
+  }
+  h += '</div>';
+
+  /* 能不能响: 三个开关分开展示. 这三件事在不同 ROM 上坏的地方不一样 --
+     精确闹钟在国产 ROM 上基本都放行, 全屏通知被 Android 14 统一收紧,
+     自启动则在各家手机管家里各管一段. 混在一起说, 用户不知道该点哪一个. */
+  var health = null;
+  if(HASNATIVE && window.HzNative.alarmHealth){
+    try{ health = JSON.parse(window.HzNative.alarmHealth() || '{}'); }catch(e){ health = null; }
+  }
+  if(HASNATIVE){
+    h += '<div class="card"><h2>能不能响 <span class="pill">'
+      + (health && health.fullScreen && health.exactAlarm ? '主通道就绪' : '有一项待开') + '</span></h2>';
+    if(!health){
+      h += '<div class="empty">这台机器的原生桥没有报状态</div>';
+    }else{
+      h += '<div class="mirror"><b>精确闹钟</b>'
+        + '<em class="' + (health.exactAlarm ? 'on' : '') + '"'
+        + (health.exactAlarm ? '' : ' style="color:var(--warn,#d29922)"') + '>'
+        + (health.exactAlarm ? '已开' : '未开') + '</em></div>';
+      h += '<div class="sub">不开也能响, 但系统会把它降级成"大概那个时间", 可能晚几分钟.'
+        + (health.exactAlarm ? '' : ' <b>点下面的按钮去开.</b>') + '</div>';
+      if(!health.exactAlarm){
+        h += '<div class="row"><button class="btn-b btn-f" id="alExact">去开精确闹钟</button></div>';
+      }
+      h += '<div class="mirror"><b>全屏通知</b>'
+        + '<em class="' + (health.fullScreen ? 'on' : '') + '"'
+        + (health.fullScreen ? '' : ' style="color:var(--warn,#d29922)"') + '>'
+        + (health.fullScreen ? '已开' : '未开') + '</em></div>';
+      h += '<div class="sub">' + (health.sdk >= 34
+          ? 'Android 14 起系统默认不给这个权限, 不给的话到点只有通知栏一条, 界面不会自己弹.'
+          : '这个系统版本没有这个限制.') + '</div>';
+      if(!health.fullScreen && health.sdk >= 34){
+        h += '<div class="row"><button class="btn-b btn-f" id="alFsi">去开全屏通知</button></div>';
+      }
+      h += '<div class="mirror"><b>自启动白名单</b>'
+        + '<em class="' + (health.autostartKnown ? 'on' : '') + '"'
+        + (health.autostartKnown ? '' : ' style="color:var(--fg-subtle)"') + '>'
+        + (health.autostartKnown ? '有直达页' : '需手动找') + '</em></div>';
+      h += '<div class="sub">' + (health.autostartKnown
+          ? '这台机器能直接跳到厂商的自启动管理页, 把本应用加进白名单, 应用内闹钟就不容易被清掉.'
+          : '这台机器（品牌 ' + esc(health.brand || '未知') + '）没有可用的直达页, '
+            + '只能跳应用详情页, 你自己在"自启动 / 后台运行 / 省电策略"里找.') + '</div>';
+      h += '<div class="row"><button class="btn-f btn-f" id="alAuto">打开自启动设置</button></div>';
+    }
+    h += '<div class="sub">这三项只影响"应用内闹钟"这条兜底通道. <b>系统时钟那条不看这些开关</b>, '
+      + '它登记在厂商时钟 App 里, 由系统负责叫醒.</div>';
+    h += '</div>';
+  }
 
   h += '<div class="card"><h2>已设的提醒 '
     + badge(AL.list.length + ' 条', AL.list.length ? 'on' : '') + '</h2>';
@@ -5967,41 +6681,65 @@ function pageAlarm(host){
   }else{
     h += AL.list.map(function(a, i){
       var past = a.at && a.at < Date.now();
+      var how = a.mode === 'clock+app' ? '系统时钟+应用内'
+              : (a.mode === 'clock' ? '系统时钟'
+              : (a.mode === 'app' ? '应用内' : (a.mode === 'web' ? '站内' : (a.mode || '-'))));
       return '<div class="al"><b>' + esc(a.title || '洗衣完成') + '</b>'
         + '<em' + (past ? ' style="color:var(--fg-subtle)"' : '') + '>'
-        + esc(new Date(a.at).toLocaleString()) + (past ? ' (已过)' : '') + '</em>'
+        + esc(new Date(a.at).toLocaleString()) + ' · ' + esc(how)
+        + (a.auto ? ' · 自动' : '') + (past ? ' (已过)' : '') + '</em>'
         + '<button class="btn-r" data-al="' + i + '">删</button></div>';
     }).join('');
   }
-  h += '<div class="sub">删掉会自动取消系统里已登记的这条闹钟(按 tag 取消), 不需要再去时钟 App 手动删.</div>';
+  h += '<div class="sub">删掉会同时取消系统里已登记的这两条(按 tag 取消), 不需要再去时钟 App 手动删.</div>';
   h += '</div>';
 
   h += '<div class="card"><h2>闹钟怎么响</h2><div class="tos">'
-    + '<p><b>本项目不再依赖系统时钟 App</b>. 到点做两件事, 顺序固定:</p>'
-    + '<p>1. <b>先起前台服务</b> -- 播放系统闹钟铃声(循环)并震动, 同时接管亮屏. '
-    + '这是保证"叫得醒"的主干: 前台服务在后台与锁屏下都能跑, 不受 Doze 冻结, '
-    + '也不会像广播那样只给 10 秒就被掐断.</p>'
-    + '<p>2. <b>再尽力弹全屏界面</b> -- 黑底大号时间 + 标题 + 正文 + 两个按钮. '
-    + '界面只是显示层, 弹不出来不影响响铃.</p>'
-    + '<p><b>为什么界面有时不弹</b>: Android 14 对"后台启动界面"管得很死, 日志里是 '
-    + 'BAL_BLOCK + Abort background activity starts; 小米还会把"后台弹出界面"收进自己的'
-    + '权限(AppOps 10021). 想让它自动弹, 去系统设置的"应用管理 - 水衣管家 - 其他权限"里'
-    + '允许"后台弹出界面 / 悬浮窗", 并允许"全屏通知". 允许之后界面会盖在锁屏上, 不用先解锁.</p>'
-    + '<p><b>为什么不再走系统闹钟</b>: 之前"加到时钟 App"走的是 SET_ALARM Intent, '
-    + '部分品牌(实测小米)缺 SET_ALARM 权限会直接被拒, 报 Permission Denial; '
-    + '另一些品牌只认时分, 丢掉标题与备注. 统一成本内置, 各家表现一致.</p>'
+    + '<p><b>主通道是系统时钟 App</b>. 闹钟登记在厂商自己的时钟应用里, 到点由系统服务叫醒它, '
+    + '本应用进程是否被杀、是否被禁止自启动都不影响. 这就是"系统闹钟不受后台清理影响"的原因, '
+    + '也是本版把它放在第一位的原因.</p>'
+    + '<p><b>为什么过去觉得"各品牌不支持"</b>: 一是 Android 11 起有包可见性限制, '
+    + '应用不声明 <code>&lt;queries&gt;</code> 就查不到任何时钟 App, 表现成"这台手机没有时钟"; '
+    + '二是各家的 SET_ALARM 实参支持程度不同, 有的认标题与备注, 有的只认时分; '
+    + '三是有品牌对"后台拉起界面"有额外开关. 这三件事分别用声明 queries, 只塞通用参数, '
+    + '先静默再退弹界面来解决, 不再靠"统一内置"绕开.</p>'
+    + '<p><b>第二通道是应用内闹钟</b>: AlarmManager.setAlarmClock 登记, 到点由本应用的前台服务'
+    + '播铃声(循环)并震动, 同时尽力弹全屏界面. 它是兜底, 因为进程被清掉之后这条就不再可靠, '
+    + '但当系统时钟那条被某个品牌拦下时, 它仍然能响.</p>'
+    + '<p><b>全屏界面有时不弹</b>: Android 14 对"后台启动界面"管得严, 日志是 BAL_BLOCK; '
+    + '小米还把"后台弹出界面"收进自己的权限(AppOps 10021). 想让它自动弹, 去"应用管理 - 水衣管家 - '
+    + '其他权限"允许"后台弹出界面 / 悬浮窗", 并允许"全屏通知". 弹不出来不影响系统时钟照响.</p>'
     + '<p><b>两个键</b>: 关闭 = 停铃声并取消该条; 5 分钟后再响 = 重新登记 5 分钟后的闹钟. '
     + '返回键等同"5 分钟后再响", 不会静默吞掉.</p>'
     + '<p><b>权限</b>: 通知权限 + 精确闹钟(SCHEDULE_EXACT_ALARM) + 前台服务(已内置声明). '
-    + 'Android 14 起"全屏通知"是单独开关, 若只弹横幅不弹全屏, 去系统设置里允许本应用的全屏通知.</p>'
+    + 'Android 14 起"全屏通知"是单独开关.</p>'
+    + '<p><b>开机与改时间</b>: 关机重启、改系统时间、换时区之后都会自动把闹钟重新登记一遍; '
+    + '开机后到解锁前这段时间也已经覆盖(锁屏开机广播), 不会出现"重启完到解锁前正好到点却不响". '
+    + '刚过点不到 1 分钟的会补响一次, 更早的直接丢弃.</p>'
     + '</div></div>';
 
   host.innerHTML = h;
-  if($('alSet')) $('alSet').onclick = function(){ alSetReal(false); };
-  if($('alClock')) $('alClock').onclick = function(){ alSetReal(true); };
+  if($('alSet')) $('alSet').onclick = function(){ alSetReal('both'); };
+  if($('alClock')) $('alClock').onclick = function(){ alSetReal('clock'); };
+  if($('alAppOnly')) $('alAppOnly').onclick = function(){ alSetReal('app'); };
   if($('alTest')) $('alTest').onclick = function(){
     var at = Date.now() + 10000;
     alSetAt(at, '测试提醒', '这是 10 秒后的测试, 说明通道是通的');
+  };
+  if($('alExact')) $('alExact').onclick = function(){
+    if(HASNATIVE && window.HzNative.exactAlarmPerm){
+      try{ window.HzNative.exactAlarmPerm('ax' + (++cbSeq)); }catch(e){ toast('打不开设置页'); }
+    }
+  };
+  if($('alFsi')) $('alFsi').onclick = function(){
+    if(HASNATIVE && window.HzNative.fullScreenPerm){
+      try{ window.HzNative.fullScreenPerm('af' + (++cbSeq)); }catch(e){}
+    }
+  };
+  if($('alAuto')) $('alAuto').onclick = function(){
+    if(HASNATIVE && window.HzNative.autoStartPage){
+      try{ window.HzNative.autoStartPage('aa' + (++cbSeq)); }catch(e){}
+    }
   };
   Array.prototype.forEach.call(host.querySelectorAll('[data-al]'), function(b){
     b.onclick = function(){
@@ -6015,137 +6753,169 @@ function pageAlarm(host){
   });
 }
 
-function alSetReal(useClockApp){
+function alSetReal(how){
   var min = Number(($('alMin') && $('alMin').value) || 0);
   if(!min || min <= 0 || min > 600){
     alertBox('分钟数不对', '填 1 到 600 之间的整数分钟.');
     return;
   }
   var at = Date.now() + min * 60000;
-  if(useClockApp){
-    var d = new Date(at);
-    if(HASNATIVE && window.HzNative.systemAlarm){
-      window.__hzCb['sa'] = function(r){
-        delete window.__hzCb['sa'];
-        if(r && r.ok){
-          log('已把闹钟加到系统时钟 App: ' + d.getHours() + ':' + pad2(d.getMinutes()), 's');
-          toast('已加到时钟');
-        }else{
-          log('系统时钟没响应, 回落到 setAlarmClock', 'w');
-          alSetAt(at, '洗衣完成', '还有 ' + min + ' 分钟');
-        }
-      };
-      try{ window.HzNative.systemAlarm('sa', d.getHours(), d.getMinutes(), '洗衣完成'); }
-      catch(e){ alSetAt(at, '洗衣完成', '还有 ' + min + ' 分钟'); }
-    }else{
-      alSetAt(at, '洗衣完成', '还有 ' + min + ' 分钟');
-    }
-    return;
-  }
-  alSetAt(at, '洗衣完成', '还有 ' + min + ' 分钟');
+  var isShoe = Number((U.lastOrder && U.lastOrder.deviceTypeId) || 0) === 4;
+  var tag = (isShoe ? 'shoe_' : 'wash_') + (U.orderId || 'x');
+  var title = isShoe ? '洗鞋完成提醒' : '洗衣完成提醒';
+  var text = '还有 ' + min + ' 分钟';
+  if(how === 'clock'){ alSetClockOnly(at, title, text, tag); return; }
+  if(how === 'app'){ alSetAppOnly(at, title, text, tag); return; }
+  alSetBoth(at, title, text, tag, false);
 }
 
-/* 网页版提醒: 到点弹浏览器通知 + 页面内 toast. 页面关了就不响, 这点如实写在界面上. */
-var WEBAL = {};
-function webRemind(at, title, text){
-  var ms = at - Date.now();
-  if(ms <= 0) return;
-  if(ms > 2147483000) ms = 2147483000;
-  var tag = 'w' + at;
-  if(WEBAL[tag]) clearTimeout(WEBAL[tag]);
-  WEBAL[tag] = setTimeout(function(){
-    delete WEBAL[tag];
-    webNotify(title, text);
-    toast(title + ': ' + text);
-    log('提醒响了: ' + title, 's');
-    var np = ('Notification' in window) ? Notification.permission : 'none';
-    if(np !== 'granted'){
-      log('这次只弹了页面提示, 想要锁屏也响就得给通知权限', 'w');
-    }
-  }, ms);
-  /* 顺手要一次通知权限 */
-  if('Notification' in window && Notification.permission === 'default'){
-    notifyAsk(function(){});
-  }
-}
-
-/* ============================================================
-   闹钟事件回收
-
-   闹钟可能在锁屏上被点掉, 那时页面是冻结的, 原生无法回调 JS.
-   所以原生侧(AlarmBridge)把结果留在静态变量里, 页面恢复后再取:
-     off:<tag>     -> 用户点了"关闭"
-     snooze:<tag>  -> 用户点了"5 分钟后再响"(或按了返回键)
-   取一次即清, 不会重复消费.
-   ============================================================ */
-var AL_POLL_TIMER = null;
-function alPollEvent(){
-  if(!HASNATIVE || !window.HzNative.alarmEvent) return;
-  var ev = '';
-  try{ ev = String(window.HzNative.alarmEvent() || ''); }catch(e){ return; }
-  if(!ev) return;
-  var p = ev.indexOf(':');
-  var kind = p > 0 ? ev.slice(0, p) : ev;
-  var tag = p > 0 ? ev.slice(p + 1) : '';
-  if(kind === 'off'){
-    if(tag) alDel(tag);
-    log('闹钟已关闭' + (tag ? ' (' + tag + ')' : ''), 's');
-    toast('闹钟已关闭');
-    /* CUR 是 app id, 没有 'alarm' 这个 app; 闹钟页是 pushPage 叠在 settings/laundry 上,
-       所以按页面栈判断, 有栈就重画(同 key 会保留滚动位置). */
-    if(PAGE_STACK.length) paint();
-  }else if(kind === 'snooze'){
-    log('闹钟已稍后再响: 5 分钟后' + (tag ? ' (' + tag + ')' : ''), 's');
-    toast('5 分钟后再响');
-    /* 原生侧已经重新登记, 这里只补界面记录 */
-    if(tag){
-      var old = null;
-      AL.list.forEach(function(a){ if(a.tag === tag) old = a; });
-      if(old){ old.at = Date.now() + 5 * 60000; alSave(); }
-    }
-    /* CUR 是 app id, 没有 'alarm' 这个 app; 闹钟页是 pushPage 叠在 settings/laundry 上,
-       所以按页面栈判断, 有栈就重画(同 key 会保留滚动位置). */
-    if(PAGE_STACK.length) paint();
-  }else{
-    log('闹钟事件: ' + ev, 'w');
-  }
-}
-function alPollStart(){
-  if(AL_POLL_TIMER) return;
-  AL_POLL_TIMER = setInterval(alPollEvent, 2000);
-  alPollEvent();
-}
-
-function alSetAt(at, title, text){
+/*
+ * 同时走两条通道设闹钟(需求1: 系统闹钟优先, 系统闹钟不受后台清理影响).
+ *
+ *   通道一 系统时钟 App: HzNative.systemAlarm(hh, mm, title) -> SET_ALARM.
+ *          闹钟由厂商时钟 App 持有, 本应用被杀也照响, 这是主通道.
+ *   通道二 本应用 AlarmManager: HzNative.setAlarm(at, ...) -> setAlarmClock.
+ *          作为兜底, 万一这台机器的时钟 App 不认静默登记, 还有一层.
+ *
+ * 两条都尝试, 最后把"实际成功的是哪几条"记到 AL 列表里, 界面上照实显示,
+ * 不谎报成功. 系统时钟通道只吃时分, 所以跨天时按"最近一次该时分"理解,
+ * 与系统时钟自身的语义一致.
+ */
+function alSetBoth(at, title, text, tag, auto){
   if(!HASNATIVE){
-    var tagw = 'wash_' + (U.orderId || 'x');
-    alAdd({ tag:tagw, at:at, title:title, mode:'web', });
+    alAdd({ tag:tag, at:at, title:title, mode:'web' });
     webRemind(at, title, text);
-    log('站内提醒已设: ' + new Date(at).toLocaleString()
-      + ' (网页版没有系统闹钟, 到点弹通知 + 页面提示)', 's');
-    toast('提醒已设');
-    paint();
+    log('站内提醒已设: ' + new Date(at).toLocaleString(), 's');
+    toast(auto ? '已设站内提醒' : '提醒已设');
+    if(auto && PAGE_STACK.length) paint();
     return;
   }
-  var tag = 'wash_' + (U.orderId || 'x');
-  window.__hzCb['al'] = function(r){
-    delete window.__hzCb['al'];
-    if(r && r.ok){
-      alAdd({ tag:tag, at:at, title:title, mode:r.mode });
-      log('闹钟已设: ' + new Date(at).toLocaleString() + ' (' + r.mode + ')', 's');
-      toast('闹钟已设');
-      paint();
-    }else if(r && r.needExactAlarm){
+  var seq = ++cbSeq;
+  var d = new Date(at);
+  var st = { clock:0, app:0, clockErr:'', appErr:'' };   /* 0 未回, 1 成功, 2 失败 */
+  var kClock = 'alc' + seq;
+  var kApp = 'ala' + seq;
+
+  function done(){
+    if(st.clock === 0 || st.app === 0) return;
+    var modes = [];
+    if(st.clock === 1) modes.push('clock');
+    if(st.app === 1) modes.push('app');
+    if(!modes.length){
+      alertBox('闹钟没设上',
+        '系统时钟: ' + esc(st.clockErr || '没响应') + '<br>'
+        + '应用内闹钟: ' + esc(st.appErr || '没响应')
+        + '<br><br>如果提示缺精确闹钟权限, 点下面按钮授权后重试.');
+      if(auto) log('自动设闹钟失败: ' + st.clockErr + ' / ' + st.appErr, 'e');
+      return;
+    }
+    alAdd({ tag:tag, at:at, title:title, mode:modes.join('+'), auto:!!auto });
+    log('闹钟已设(' + modes.join('+') + '): ' + new Date(at).toLocaleString(), 's');
+    if(auto) toast('已自动设' + title);
+    else toast(st.clock === 1 ? '已加到系统时钟' : '闹钟已设(应用内)');
+    if(PAGE_STACK.length) paint();
+  }
+
+  /* 通道一: 系统时钟 */
+  window.__hzCb[kClock] = function(r){
+    delete window.__hzCb[kClock];
+    if(r && r.ok) st.clock = 1;
+    else { st.clock = 2; st.clockErr = (r && r.err) || '没有可用的时钟 App'; }
+    done();
+  };
+  /* 系统时钟通道(SET_ALARM)只能到"时:分", 秒被截掉. 直接 getMinutes() 最多早响 59 秒 --
+     洗衣机还在转就响了, 用户体感就是"不准". 秒数过半就进位到下一分钟: 宁可晚响, 不要早响. */
+  var dc = new Date(at);
+  if(dc.getSeconds() >= 30) dc.setMinutes(dc.getMinutes() + 1);
+  try{ window.HzNative.systemAlarm(kClock, dc.getHours(), dc.getMinutes(), title); }
+  catch(e){ st.clock = 2; st.clockErr = String(e && e.message || e); done(); }
+
+  /* 通道二: 应用内 AlarmManager(精确闹钟权限缺失时原生会回 needExactAlarm) */
+  window.__hzCb[kApp] = function(r){
+    delete window.__hzCb[kApp];
+    if(r && r.ok) st.app = 1;
+    else if(r && r.needExactAlarm){
+      st.app = 2; st.appErr = '缺精确闹钟权限';
       alertBox('还差一个权限', 'Android 12 起, 设精确闹钟要单独允许.<br>点下面的按钮打开, 回来再点一次.',
         [{ label:'去授权', cls:'btn-b', fn:function(){
             try{ window.HzNative.exactAlarmPerm('eap' + (++cbSeq)); }catch(e){}
           } }, { label:'取消' }]);
-    }else{
-      alertBox('闹钟没设上', esc((r && r.err) || '未知原因'));
-    }
+    }else{ st.app = 2; st.appErr = (r && r.err) || '登记失败'; }
+    done();
   };
-  try{ window.HzNative.setAlarm('al', at, title, text, tag); }
-  catch(e){ alertBox('闹钟没起来', esc(e.message)); }
+  try{ window.HzNative.setAlarm(kApp, at, title, text, tag); }
+  catch(e){ st.app = 2; st.appErr = String(e && e.message || e); done(); }
+}
+
+/* 只走系统时钟一条(用户手动选择时用). 结果照实报, 不回落. */
+function alSetClockOnly(at, title, text, tag){
+  if(!HASNATIVE){
+    toast('网页版没有系统时钟通道');
+    return;
+  }
+  var k = 'alc' + (++cbSeq);
+  var d = new Date(at);
+  /* 同 alSetBoth: 秒过半进位, 避免早响 */
+  if(d.getSeconds() >= 30) d.setMinutes(d.getMinutes() + 1);
+  window.__hzCb[k] = function(r){
+    delete window.__hzCb[k];
+    if(r && r.ok){
+      alAdd({ tag:tag, at:at, title:title, mode:'clock', auto:false });
+      toast(r.silent ? ('已静默加入' + (r.label || '系统时钟')) : ('已打开' + (r.label || '系统时钟') + ', 请在界面上确认'));
+      log('系统时钟已登记(' + (r.label || r.pkg || '?') + ', 静默=' + !!r.silent + '): ' + new Date(at).toLocaleString(), 's');
+      if(PAGE_STACK.length) paint();
+      return;
+    }
+    alertBox('系统时钟没设上',
+      (r && r.none)
+        ? '这台机器上没有能接系统闹钟的时钟 App. 可以去系统设置里确认"时钟"是否被停用, 或改走应用内闹钟.'
+        : ('原因: ' + esc((r && r.err) || '没响应') + '<br><br>可以用下面的按钮改走应用内闹钟.'),
+      [{ label:'改走应用内', cls:'btn-b', fn:function(){ alSetAppOnly(at, title, text, tag); } },
+       { label:'取消' }]);
+  };
+  try{ window.HzNative.systemAlarm(k, d.getHours(), d.getMinutes(), title); }
+  catch(e){
+    alertBox('系统时钟没设上', '调用失败: ' + esc(String(e && e.message || e)));
+  }
+}
+
+/* 只走应用内 AlarmManager 一条. */
+function alSetAppOnly(at, title, text, tag){
+  if(!HASNATIVE){
+    alAdd({ tag:tag, at:at, title:title, mode:'web' });
+    webRemind(at, title, text);
+    toast('已设站内提醒');
+    if(PAGE_STACK.length) paint();
+    return;
+  }
+  var k = 'ala' + (++cbSeq);
+  window.__hzCb[k] = function(r){
+    delete window.__hzCb[k];
+    if(r && r.ok){
+      alAdd({ tag:tag, at:at, title:title, mode:'app', auto:false });
+      toast('已设应用内闹钟');
+      if(PAGE_STACK.length) paint();
+      return;
+    }
+    if(r && r.needExactAlarm){
+      alertBox('还差一个权限', 'Android 12 起, 设精确闹钟要单独允许.<br>点下面的按钮打开, 回来再点一次.',
+        [{ label:'去授权', cls:'btn-b', fn:function(){
+            try{ window.HzNative.exactAlarmPerm('eap' + (++cbSeq)); }catch(e){}
+          } }, { label:'取消' }]);
+      return;
+    }
+    alertBox('应用内闹钟没设上', '原因: ' + esc((r && r.err) || '没响应'));
+  };
+  try{ window.HzNative.setAlarm(k, at, title, text, tag); }
+  catch(e){
+    alertBox('应用内闹钟没设上', '调用失败: ' + esc(String(e && e.message || e)));
+  }
+}
+
+/* 兼容老调用点: 默认单号 tag, 两条通道一起走 */
+function alSetAt(at, title, text){
+  var tag = 'wash_' + (U.orderId || 'x');
+  alSetBoth(at, title, text, tag, false);
 }
 
 
@@ -6793,18 +7563,33 @@ function applyTheme(id){
     try{ window.HzNative.theme(id === 'light' || id === 'light-hc' ? 'light' : 'dark'); }catch(e){}
   }
 }
-/* 赞赏码: 图片在 assets/reward.jpg(与 index.html 同级, WebView 直接能读).
-   只在用户主动点开时显示, 不弹窗打扰, 不做任何"支持才能用"的门槛. */
+/* 赞赏码内联成 data URI.
+   壳里页面是 loadDataWithBaseURL("https://localhost/", ...) 注入的, base URL 不是
+   file:///android_asset/, 所以 <img src="reward.jpg"> 会被解析成
+   https://localhost/reward.jpg 去请求, 必然 404 -- 这就是"赞赏码显示不出来"的原因.
+   内联之后不依赖任何资源路径, 离线也能显示. */
+var REWARD_IMG = 'data:image/jpeg;base64,' + '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';
+/* 赞赏码: 原图同时保留在 assets/reward.jpg, 供重新编码时取用. */
 function showReward(){
   modal({ title:'请我喝杯咖啡',
     body: '<div style="text-align:center">'
-      + '<img src="reward.jpg" alt="赞赏码" style="width:240px;max-width:78%;border-radius:12px">'
+      + '<img id="rewardImg" src="' + REWARD_IMG + '" alt="赞赏码" '
+      + 'style="width:240px;max-width:78%;border-radius:12px;cursor:zoom-in">'
       + '<div class="sub" style="margin-top:10px;text-align:left">'
       + '用微信扫这个码就能赞赏, 金额随意, 完全自愿.'
       + '<br>本软件始终开源免费, 赞赏不会解锁任何功能, 不赞赏也一样用.'
       + '<br><span style="opacity:.7">出水与洗衣的钱是付给平台的, 与这里无关.</span>'
       + '</div></div>',
     actions: [{ label:'关闭' }] });
+  /* 小屏上 240px 的码可能扫不动, 点一下铺满屏幕再看. */
+  var ri = $('rewardImg');
+  if(ri) ri.onclick = function(){
+    modal({ title:'赞赏码',
+      body: '<div style="text-align:center">'
+        + '<img src="' + REWARD_IMG + '" alt="赞赏码" style="width:100%;max-width:100%;border-radius:10px">'
+        + '<div class="sub" style="margin-top:8px">微信扫一扫, 或直接长按识别</div></div>',
+      actions: [{ label:'关闭' }] });
+  };
 }
 
 function pageSettings(host){
@@ -6885,15 +7670,19 @@ function pageSettings(host){
     + badge(APP_VER) + '</h2>';
   h += kv('当前版本', APP_VER);
   h += kv('上次检查', UPD.lastCheck ? ts2s(UPD.lastCheck) : '没查过');
+  /* 设置页这张卡不重复实现状态机, 直接复用 updCheckLabel,
+     这样两处入口的文字永远一致, 不会出现"一处正在查一处显示空闲". */
   h += '<div class="row" style="margin-top:9px">'
-    + '<button class="btn-b btn-f" id="setUpdate">检查更新</button></div>';
+    + '<button class="btn-b btn-f" id="setUpdate"'
+    + (UPD.state === 'checking' ? ' disabled style="opacity:.6"' : '')
+    + '>' + esc(updCheckLabel()) + '</button></div>';
   h += '<div class="sub">镜像源优先, 直连兜底. 下载完交给系统安装器, 不做静默安装.</div>';
   h += '</div>';
 
   h += '<div class="card"><h2>提醒 '
     + badge(AL.list.length + ' 条', AL.list.length ? 'on' : '') + '</h2>';
   h += '<div class="row"><button class="btn-f" id="setAlarm">闹钟管理</button></div>';
-  h += '<div class="sub">到点由本应用前台服务响铃 + 震动(后台与锁屏都生效), 并尽力弹全屏界面; 不依赖手机自带的时钟 App.</div>';
+  h += '<div class="sub">两条通道一起登记: 系统时钟 App(厂商闹钟, 系统托管, 本应用被后台清理也照响) + 应用内前台服务(响铃 + 震动 + 全屏界面). 订单在跑时页面会按账单里的完成时刻自动建, 同一单不会重复建.</div>';
   h += '</div>';
 
   h += '<div class="card"><h2>关于</h2>';
@@ -6901,7 +7690,14 @@ function pageSettings(host){
   h += kv('原生桥', HASNATIVE ? '已接入' : '未接入');
   h += kv('取水后端', 'userapi.qiekj.com');
   h += kv('洗衣后端', 'phoenix.ujing.online');
-  h += kv('源码仓库', 'github.com/' + REPO);
+  /* kv() 会对值做 esc, 标签会被转成文本; 链接类内容必须用 kvH(html 原样插入). */
+  if(REPO){
+    h += kvH('源码仓库', '<a href="#" id="setRepo" '
+      + 'style="color:var(--accent);word-break:break-all">' + esc(REPO_URL) + '</a>');
+  }else{
+    h += kv('源码仓库', '未配置');
+  }
+  h += kv('许可', REPO_LIC + '(不可商用)');
   h += '<div class="sub">两个账号体系, 两套余额, 两套积分, 两套订单, 互不混算. '
     + '接新应用只要再 registerApp 一行, 底部导航自动多一格.</div>';
   h += '</div>';
@@ -6942,6 +7738,7 @@ function pageSettings(host){
     pushPage({ title:'更新', sub:'镜像优先, 直连兜底', render:pageUpdate });
   };
   if($('setReward')) $('setReward').onclick = showReward;
+  if($('setRepo')) $('setRepo').onclick = function(e){ e.preventDefault(); openUrl(REPO_URL); };
   if($('setAlarm')) $('setAlarm').onclick = function(){
     pushPage({ title:'闹钟管理', sub:'内置全屏闹钟', render:pageAlarm });
   };
@@ -7067,6 +7864,52 @@ function nativeOnlyGate(){
   return true;
 }
 
+/* ---------------------------------------------------------------
+   更新后第一次打开弹一次更新内容.
+   判据是"上次看过的版本号 != 当前版本号", 所以装新版后必弹一次, 之后同版本不再弹.
+   从没看过(全新安装)不弹 -- 新用户没有"更新"这回事, 弹了只会莫名其妙.
+   --------------------------------------------------------------- */
+var SEEN_KEY = 'hz_seen_ver';
+
+function seenLoad(){
+  try{ return String(localStorage.getItem(SEEN_KEY) || ''); }catch(e){ return ''; }
+}
+function seenSave(v){
+  try{ localStorage.setItem(SEEN_KEY, String(v)); }catch(e){}
+}
+
+/* 判断"是不是老用户升级上来的": 从没记过 seen 但本地已有别的数据, 说明装过旧版.
+   旧版没写过 seen, 所以第一条升级必须靠这个判据, 否则升级上来的第一批人一个都看不到. */
+function seenLegacy(){
+  try{
+    if(localStorage.getItem('hz_logs')) return true;
+    if(localStorage.getItem('hz_accounts_v3')) return true;
+    if(localStorage.getItem(ACC_KEY)) return true;
+  }catch(e){}
+  return false;
+}
+
+function changelogPopupOnce(){
+  var seen = seenLoad();
+  if(!seen){
+    if(!seenLegacy()){ seenSave(APP_VER); return; }   /* 真·全新安装, 不弹 */
+    seen = '';                                        /* 老用户升级上来, 走下面弹一次 */
+  }else if(cmpVer(seen, APP_VER) === 0){
+    return;                                           /* 这一版看过了 */
+  }
+  var o = clNotesOf(APP_VER, null);
+  seenSave(APP_VER);                               /* 先记, 免得弹窗期间被重入再弹 */
+  if(!o.notes.length) return;
+  var body = '<div class="sub" style="margin-bottom:8px">已更新到 v' + esc(APP_VER)
+    + (o.date ? (' (' + esc(o.date) + ')') : '') + ', 这一版改了:</div>'
+    + '<ul style="margin:0 0 0 18px;padding:0">';
+  o.notes.forEach(function(x){
+    body += '<li style="margin:6px 0;line-height:1.55">' + esc(String(x)) + '</li>';
+  });
+  body += '</ul>';
+  alertBox('更新内容', body, [{ label:'知道了' }]);
+}
+
 function boot(){
   if(nativeOnlyGate()) return;
   try{ logPersistLoad(); }catch(e){} /* 先装历史日志, 再写"就绪", 重启不丢 */
@@ -7074,6 +7917,7 @@ function boot(){
   try{ if(window.HzNative && HzNative.ready) HzNative.ready(); }catch(e){}
   termsLoad();
   alLoad();
+  alAutoLoad();
   alPollStart();
   verLoad();
   log('就绪. 原生桥=' + (HASNATIVE ? ('已接入(' + window.HzNative.platform() + ')') : '无(浏览器模式)'));
@@ -7086,6 +7930,11 @@ log('两个账号体系与两套账单互相独立, 不混算');
   if(S.token){ wLoadBalance(); wLoadOrders(); }
   if(U.token){ uLoadOrders(); }
   gateStart();
+  /* 引导层(协议/权限)优先; 没有任何引导层要显示时才弹更新内容 */
+  try{
+    var g = $('gate');
+    if(!g || g.className.indexOf('on') < 0) changelogPopupOnce();
+  }catch(e){}
 }
 </script>
 </body>
