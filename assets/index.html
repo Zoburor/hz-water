@@ -120,6 +120,16 @@ body{
 .sub.warn{color:#b45309;background:#fffbeb;border-left:3px solid #f59e0b;padding:6px 8px;border-radius:4px}
 .row{display:flex;gap:7px;margin-bottom:7px}
 .row:last-child{margin-bottom:0}
+/* 洗衣订单卡的动作按钮: 三个横向并排, 每个都放到"取消订单"那档大小;
+   主操作"开启洗衣机"双倍高度, 一眼就是主按钮. 多按钮时自动换行不挤. */
+.uact{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px;margin-bottom:18px}
+.uact button{flex:1 1 30%;min-width:0;height:46px;font-size:15px;font-weight:600;
+  border-radius:8px;padding:0 8px;white-space:nowrap}
+.uact button.uact-big{flex:1 1 30%;height:92px;font-size:19px;font-weight:800;
+  letter-spacing:1px;border-width:2px}
+
+.uact-cancel button{height:46px;font-size:15px;font-weight:600;border-radius:8px}
+
 input,select{flex:1;min-width:0;padding:0 11px;border-radius:6px;background:var(--bg-inset);
   border:1px solid var(--border);color:var(--fg);font-size:13.5px;font-family:inherit;outline:none;
   height:34px;-webkit-appearance:none;appearance:none}
@@ -5141,7 +5151,7 @@ function askPerm(kind){
 /* ============================================================
    6.6 更新: 镜像优先, 直连兜底
    ============================================================ */
-var APP_VER = '1.1.0';
+var APP_VER = '1.1.1';
 var VER_KEY = 'hz_ver_v10';
 /* GitHub 仓库(owner/repo). 更新源与"源码仓库"都靠它拼地址.
    发版时把按架构打的包传到 Release, 名字要对上 updApkName() 的返回值. */
@@ -5328,6 +5338,21 @@ function fetchRemoteVer(done){
    条目写作口径: 只按发布页发过的版本记账(用户只看得见那几版), 不写内部小版本号, 不写函数名与行号. 当前只有 1.0.3 与 1.1.0 两条, 1.1.0 里是 1.0.3 之后的全部改动.
    --------------------------------------------------------------- */
 var CHANGELOG = {
+  '1.1.1': { date:'2026-11-09', notes:[
+    '闹钟改用系统时钟: 下单后按账单里的完成时刻自动在系统时钟里登记一条, 应用被后台清理也照响',
+    '开机后自动补登记闹钟, 不再因为重启漏响',
+    '修掉剩余时长被误判单位: 剩余不足 10 分钟时闹钟此前会设到几小时后, 或一条都不设',
+    '订单取消或超时后自动撤销已登记的闹钟, 不再挂到点照响',
+    '闹钟时间基准改从服务器响应头取, 不再用本机时钟单独作准, 闹钟页直接显示手机比服务器快或慢多少秒',
+    '闹钟页新增"能不能响"自检: 精确闹钟 / 全屏通知 / 自启动白名单三项分开展示, 各带直达按钮',
+    '响铃改相对渐强, 不再改动系统闹钟音量档',
+    '扫码页相机预览不再上下拉伸, 按真实比例显示',
+    '洗衣订单卡的操作按钮放大: 刷新状态 / 开启洗衣机 / 完成提醒 三个并排到和取消订单同一档, 主操作开启洗衣机双倍高度, 和取消订单之间留出间距',
+    '更新页加下载进度条 / 打开下载目录 / 打开项目仓库; 检查更新不再弹窗, 改成按钮直接显示结果',
+    '更新日志做进软件: 有新版时摊开新版改了什么, 没有时摊开当前这版; 装上新版后第一次打开弹一次, 看过就不再弹',
+    '协议与权限页, 赞赏入口, 按机型下载安装包',
+    '移除一处硬编码的测试账号自动重登逻辑, 登录过期统一提示用户重新收码'
+  ]},
   '1.1.0': { date:'2026-11-09', notes:[
     '闹钟改用系统时钟: 下单后按账单里的完成时刻自动在系统时钟里登记一条, 应用被后台清理也照响',
     '开机后自动补登记闹钟, 不再因为重启漏响',
@@ -7134,13 +7159,13 @@ function pageLaundry(host){
         + Math.max(3, Math.min(100, pctO)) + '%"></i></div>';
       h += '<div class="sub">进度 ' + Math.round(pctO) + '%' + (doneO ? ' (已完成)' : '') + '</div>';
     }
-    h += '<div class="row" style="margin-top:9px">'
-      + '<button class="btn-b btn-f" data-upoll="'+esc(oidC)+'">刷新状态</button>'
-      + (unpaidO ? '<button class="btn-p btn-f" data-upay="'+esc(oidC)+'">去支付</button>' : '')
-      + (canStart ? '<button class="btn-p btn-f" data-ustart="'+esc(oidC)+'">开启洗衣机</button>' : '')
-      + (canCont ? '<button class="btn-b btn-f" data-ucont="'+esc(oidC)+'">继续洗衣</button>' : '')
-      + (canStop ? '<button class="btn-r btn-f" data-ustop="'+esc(oidC)+'">提前结束</button>' : '')
-      + '<button class="btn-f" data-ualarm="'+esc(oidC)+'">完成提醒</button></div>';
+    h += '<div class="uact">'
+      + '<button class="btn-b" data-upoll="'+esc(oidC)+'">刷新状态</button>'
+      + (unpaidO ? '<button class="btn-p" data-upay="'+esc(oidC)+'">去支付</button>' : '')
+      + (canStart ? '<button class="btn-p uact-big" data-ustart="'+esc(oidC)+'">开启洗衣机</button>' : '')
+      + (canCont ? '<button class="btn-b" data-ucont="'+esc(oidC)+'">继续洗衣</button>' : '')
+      + (canStop ? '<button class="btn-r" data-ustop="'+esc(oidC)+'">提前结束</button>' : '')
+      + '<button data-ualarm="'+esc(oidC)+'">完成提醒</button></div>';
     if(paidO){
       h += '<div class="sub">已支付, 还没启动. 正版语义 = 付完款后<b>手动点"开启洗衣机"</b>, '
         + '服务端把启动指令下发给设备(状态 21 启动中 -> 30/40 运行中), 点上面按钮即可.</div>';
@@ -7163,7 +7188,7 @@ function pageLaundry(host){
         + '" style="color:#2f81f7">我已支付, 点这里刷新</a></div>';
     }
     if(canCancel){
-      h += '<div class="row"><button class="btn-r btn-f" data-ucancel="'+esc(oidC)+'">取消订单</button></div>';
+      h += '<div class="row uact-cancel"><button class="btn-r btn-f" data-ucancel="'+esc(oidC)+'">取消订单</button></div>';
       h += '<div class="sub">' + (unpaidO
         ? '这笔还没支付(状态 10). 轮询 5 秒一次, 也可以点去支付或到正版 App 付款, 付完这里自动变.'
         : '已支付还没启动(状态 20), 正版同样给取消入口; 启动之后只剩提前结束.') + '</div>';
