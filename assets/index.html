@@ -5365,7 +5365,7 @@ function askPerm(kind){
 /* ============================================================
    6.6 更新: 镜像优先, 直连兜底
    ============================================================ */
-var APP_VER = '1.2.0';
+var APP_VER = '1.2.1';
 var VER_KEY = 'hz_ver_v10';
 /* GitHub 仓库(owner/repo). 更新源与"源码仓库"都靠它拼地址.
    发版时把按架构打的包传到 Release, 名字要对上 updApkName() 的返回值. */
@@ -5540,6 +5540,11 @@ function fetchRemoteVer(done){
    条目写作口径: 只按发布页发过的版本记账(用户只看得见那几版), 不写内部小版本号, 不写函数名与行号. 当前只有 1.0.3 与 1.1.0 两条, 1.1.0 里是 1.0.3 之后的全部改动.
    --------------------------------------------------------------- */
 var CHANGELOG = {
+  '1.2.1': { date:'2026-11-14', notes:[
+      '修复: 删除已下载的安装包后, 更新页仍误显示"已下好"并安装报错的问题(现在会如实恢复为可重新下载)',
+      '修复: 安装前会再次核对安装包是否真的还在, 不再点出"没有已下载的包"的报错',
+      '下载卡新增"安装已下好的包"按钮, 检测到包后可以直接安装'
+    ]},
   '1.2.0': { date:'2026-11-14', notes:[
       '界面配色与布局更新: 新增 Nord 深/浅两套主题(共八套), 卡片圆角与阴影调整, 页头与底栏跟随主题配色',
       '设置页重排: 账号, 个性化, 提醒, 更新, 赞赏, 权限, 数据来源, 关于; 长内容卡片支持折叠',
@@ -5989,6 +5994,12 @@ function updPaintProg(){
   if(phase === 'fail' && p.err) h += '<div class="sub" style="color:var(--danger)">' + esc(p.err) + '</div>';
   if(phase === 'idle' && p.err) h += '<div class="sub">上一次: ' + esc(p.err) + '</div>';
 
+  /* ready 态: 下载卡内直接给"安装"按钮(用户要求: 下载好了检测到了, 下载下面要有安装按钮) */
+  if(UPD.state === 'ready' && UPD.readyTag){
+    h += '<div class="row" style="margin-top:9px">'
+      + '<button class="btn-c" id="updInstallBtn">安装已下好的 v' + esc(UPD.readyTag) + '</button></div>';
+  }
+
   h += '<div class="row" style="margin-top:9px">'
     + '<button class="btn-b btn-f" id="updDir">打开下载目录</button>'
     + '<button class="btn-f" id="updRepo">打开项目仓库</button></div>';
@@ -5998,6 +6009,7 @@ function updPaintProg(){
   box.innerHTML = h;
   if($('updDir')) $('updDir').onclick = openDownloadDir;
   if($('updRepo')) $('updRepo').onclick = function(){ openUrl(REPO_URL); };
+  if($('updInstallBtn')) $('updInstallBtn').onclick = updCheckTap;   /* 走同一复核+安装链路 */
 }
 
 function updPollStart(){
@@ -6144,24 +6156,41 @@ function pageUpdate(host){
     rs.disabled = true; rs.style.opacity = .6;
     var msg = $('updRescanMsg');
     if(msg) msg.textContent = '正在扫描下载目录与应用缓存...';
-    var k2 = 'rs' + (++cbSeq);
-    window.__hzCb[k2] = function(r2){
-      delete window.__hzCb[k2];
-      rs.disabled = false; rs.style.opacity = '';
-      if(msg){
-        msg.textContent = (r2 && r2.msg) ? r2.msg : '检测完成';
+    /* 不走 deliver 回调: 轮询原生状态文件(updateRestore/updateCached),
+       RescanTask15 完成后 state.json 与记账都会变, 最多等 40 轮(约 32s). */
+    var tries = 0;
+    var timer = setInterval(function(){
+      tries++;
+      var c = null, snap = null;
+      try{ c = JSON.parse(window.HzNative.updateCached() || 'null'); }catch(e1){ c = null; }
+      try{ snap = JSON.parse(window.HzNative.updateRestore() || 'null'); }catch(e2){ snap = null; }
+      var idle = snap && (snap.phase === 'idle' || !snap.running);
+      var msgTxt = '';
+      if(c && c.ok && c.file !== false && c.tag && cmpVer(c.tag, APP_VER) > 0){
+        /* 缓存里真有新版包: ready 态 + 检查按钮变"已下好 点击安装" */
+        UPD.state = 'ready'; UPD.readyTag = String(c.tag);
+        if(!UPD.remote || cmpVer(UPD.remote, c.tag) !== 0) UPD.remote = c.tag;
+        msgTxt = '缓存里有 v' + c.tag + ' 的安装包, 点上方按钮即可安装';
+      } else if(tries >= 4 && idle){
+        if(UPD.state === 'ready'){ UPD.state = 'latest'; UPD.readyTag = ''; }
+        msgTxt = '下载目录没有比 v' + APP_VER + ' 新的安装包, 已清掉失效记账, 可以重新下载';
       }
-      paint();
-      try{ updSyncCached(); }catch(e3){}
-      updPaintCheck();
-      if(r2 && r2.found){ toast('找到了 v' + r2.tag + ' 的安装包'); }
-      else if(r2 && r2.cleared){ toast('已清掉失效记账, 可以重新下载'); }
-    };
+      if(msgTxt || tries > 40){
+        clearInterval(timer);
+        try{ updSyncCached(); }catch(e3){}
+        updPaintCheck();
+        paint();
+        var m2 = $('updRescanMsg');
+        if(m2){ m2.textContent = msgTxt || '检测完成'; }
+        if(msgTxt && c && c.ok && c.file !== false){ toast('找到了 v' + c.tag + ' 的安装包'); }
+        rs.disabled = false; rs.style.opacity = '';
+      }
+    }, 800);
     try{
-      if(HASNATIVE && window.HzNative.updateRescan){ window.HzNative.updateRescan(k2); }
-      else { toast('这个包没有该能力'); rs.disabled = false; rs.style.opacity = ''; }
+      if(HASNATIVE && window.HzNative.updateRescan){ window.HzNative.updateRescan('rs_fire'); }
+      else { toast('这个包没有该能力'); clearInterval(timer); rs.disabled = false; rs.style.opacity = ''; }
     }catch(e4){
-      toast('检测失败'); rs.disabled = false; rs.style.opacity = '';
+      toast('检测失败'); clearInterval(timer); rs.disabled = false; rs.style.opacity = '';
     }
   };
   host.querySelectorAll('[data-updcopy]').forEach(function(el){
