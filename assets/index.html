@@ -5765,8 +5765,17 @@ function updSyncCached(){
   if(!c || !c.ok) return;
   var t = String(c.tag || '');
   if(!t || cmpVer(t, APP_VER) <= 0) return;          /* 旧包/未知版本, 不认 */
-  /* 记账说下好了, 但包文件已经被安装器/系统清掉: 只能如实重下, 不冒充已下好 */
-  if(c.file === false) return;
+  /* 记账说下好了, 但包文件没了(被安装器消费/用户在下载目录删了副本并连带清了缓存):
+     不冒充已下好, 把 ready 态清掉回到可下载状态 */
+  if(c.file === false){
+    if(UPD.state === 'ready'){
+      UPD.state = (UPD.remote && cmpVer(UPD.remote, APP_VER) > 0) ? 'update' : 'latest';
+      UPD.readyTag = '';
+      updPaintCheck();
+      log('下载目录里的安装包已经不在了, 恢复为可重新下载', 'w');
+    }
+    return;
+  }
   /* 包自己报的版本与记账对不上(远端资产没跟上版本号的事故): 不算已下好 */
   if(c.real && t && String(c.real) !== t){ log('缓存的包是 v' + c.real + ', 记账却写着 v' + t + ', 需要重新下载', 'w'); return; }
   if(UPD.state === 'checking') return;
@@ -6105,6 +6114,10 @@ function pageUpdate(host){
   });
   h += '<div class="sub">镜像源走的是 GitHub 加速代理, 直连失败时才回落到 github.com 与 raw.githubusercontent.com. '
     + '源地址写在页面里, 想换直接改 UPDATE_SOURCES.</div>';
+  h += '<div class="row" style="margin-top:9px">'
+    + '<button class="btn-f" id="updRescan">重新检测下载目录</button></div>';
+  h += '<div class="sub" id="updRescanMsg">扫公共下载目录与应用缓存, 找有没有比当前版本新的安装包; '
+    + '也会清掉已经失效的"已下好"记账, 让你可以重新下载.</div>';
   h += '</div>';
 
   h += '<div class="card"><h2>说明</h2><div class="tos">'
@@ -6126,6 +6139,31 @@ function pageUpdate(host){
     }
   }catch(e){}
   updPaintCheck();
+  var rs = $('updRescan');
+  if(rs) rs.onclick = function(){
+    rs.disabled = true; rs.style.opacity = .6;
+    var msg = $('updRescanMsg');
+    if(msg) msg.textContent = '正在扫描下载目录与应用缓存...';
+    var k2 = 'rs' + (++cbSeq);
+    window.__hzCb[k2] = function(r2){
+      delete window.__hzCb[k2];
+      rs.disabled = false; rs.style.opacity = '';
+      if(msg){
+        msg.textContent = (r2 && r2.msg) ? r2.msg : '检测完成';
+      }
+      paint();
+      try{ updSyncCached(); }catch(e3){}
+      updPaintCheck();
+      if(r2 && r2.found){ toast('找到了 v' + r2.tag + ' 的安装包'); }
+      else if(r2 && r2.cleared){ toast('已清掉失效记账, 可以重新下载'); }
+    };
+    try{
+      if(HASNATIVE && window.HzNative.updateRescan){ window.HzNative.updateRescan(k2); }
+      else { toast('这个包没有该能力'); rs.disabled = false; rs.style.opacity = ''; }
+    }catch(e4){
+      toast('检测失败'); rs.disabled = false; rs.style.opacity = '';
+    }
+  };
   host.querySelectorAll('[data-updcopy]').forEach(function(el){
     el.onclick = function(){
       var v = el.getAttribute('data-updcopy') || '';
