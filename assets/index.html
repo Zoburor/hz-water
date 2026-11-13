@@ -5365,7 +5365,7 @@ function askPerm(kind){
 /* ============================================================
    6.6 更新: 镜像优先, 直连兜底
    ============================================================ */
-var APP_VER = '1.2.1';
+var APP_VER = '1.2.2';
 var VER_KEY = 'hz_ver_v10';
 /* GitHub 仓库(owner/repo). 更新源与"源码仓库"都靠它拼地址.
    发版时把按架构打的包传到 Release, 名字要对上 updApkName() 的返回值. */
@@ -5540,6 +5540,9 @@ function fetchRemoteVer(done){
    条目写作口径: 只按发布页发过的版本记账(用户只看得见那几版), 不写内部小版本号, 不写函数名与行号. 当前只有 1.0.3 与 1.1.0 两条, 1.1.0 里是 1.0.3 之后的全部改动.
    --------------------------------------------------------------- */
 var CHANGELOG = {
+  '1.2.2': { date:'2026-11-14', notes:[
+      '修复: 下载完成后更新页偶发卡在"下载中 100%"且无法安装/重新检测的问题(现在会立即恢复为正确状态)'
+    ]},
   '1.2.1': { date:'2026-11-14', notes:[
       '修复: 删除已下载的安装包后, 更新页仍误显示"已下好"并安装报错的问题(现在会如实恢复为可重新下载)',
       '修复: 安装前会再次核对安装包是否真的还在, 不再点出"没有已下载的包"的报错',
@@ -6034,6 +6037,19 @@ function updPollStart(){
           UPD.msg = p.err || '下载失败';
           updPaintCheck();
         }
+      }else if(p.phase === 'idle' && UPD.state === 'downloading'){
+        /* 下载完成被安装器消费/被清掉: 原生已回 idle, 页面不能永远卡"下载中 100%".
+           有记账(带新包)转 ready, 没有就回 update/latest, 与 updSyncCached 同口径. */
+        var c0 = null;
+        try{ c0 = JSON.parse(window.HzNative.updateCached() || 'null'); }catch(e5){ c0 = null; }
+        if(c0 && c0.ok && c0.file !== false && c0.tag && cmpVer(c0.tag, APP_VER) > 0){
+          UPD.state = 'ready'; UPD.readyTag = String(c0.tag);
+          if(!UPD.remote || cmpVer(UPD.remote, c0.tag) !== 0) UPD.remote = c0.tag;
+        }else{
+          UPD.state = (UPD.remote && cmpVer(UPD.remote, APP_VER) > 0) ? 'update' : 'latest';
+          UPD.readyTag = '';
+        }
+        updPaintCheck();
       }
     }
     updPaintProg();
