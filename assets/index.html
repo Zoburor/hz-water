@@ -44,6 +44,7 @@ body{ overscroll-behavior-y:contain }
 
 /* ===== 色板取自 GitHub Primer 官方主题 ===== */
 :root,[data-theme="dark"]{
+  --hdr-grad:linear-gradient(135deg,#388bfd,#1f6feb); --hdr-bg:#161b22; --acc-soft:rgba(56,139,253,.16);
   --bg:#0d1117; --bg-subtle:#161b22; --bg-inset:#21262d;
   --border:#30363d; --fg:#e6edf3; --fg-muted:#8b949e; --fg-subtle:#6e7681;
   --accent:#58a6ff; --accent-bg:#1f6feb; --accent-fg:#ffffff;
@@ -51,6 +52,7 @@ body{ overscroll-behavior-y:contain }
   --warn:#d29922;
 }
 [data-theme="dimmed"]{
+  --hdr-grad:linear-gradient(135deg,#539bf5,#316dca); --hdr-bg:#2d333b; --acc-soft:rgba(83,155,245,.16);
   --bg:#22272e; --bg-subtle:#2d333b; --bg-inset:#373e47;
   --border:#444c56; --fg:#adbac7; --fg-muted:#768390; --fg-subtle:#636e7b;
   --accent:#539bf5; --accent-bg:#316dca; --accent-fg:#ffffff;
@@ -58,6 +60,7 @@ body{ overscroll-behavior-y:contain }
   --warn:#c69026;
 }
 [data-theme="hc"]{
+  --hdr-grad:linear-gradient(135deg,#71b7ff,#409eff); --hdr-bg:#0f1318; --acc-soft:rgba(113,183,255,.22);
   --bg:#0a0c10; --bg-subtle:#0f1318; --bg-inset:#151b23;
   --border:#6e7681; --fg:#f0f3f6; --fg-muted:#9ea7b3; --fg-subtle:#848d97;
   --accent:#71b7ff; --accent-bg:#409eff; --accent-fg:#0a0c10;
@@ -65,6 +68,7 @@ body{ overscroll-behavior-y:contain }
   --warn:#e09b13;
 }
 [data-theme="light"]{
+  --hdr-grad:linear-gradient(135deg,#218bff,#0969da); --hdr-bg:#eef2f6; --acc-soft:rgba(9,105,218,.12);
   --bg:#ffffff; --bg-subtle:#f6f8fa; --bg-inset:#eaeef2;
   --border:#d0d7de; --fg:#1f2328; --fg-muted:#59636e; --fg-subtle:#6e7781;
   --accent:#0969da; --accent-bg:#1f883d; --accent-fg:#ffffff;
@@ -72,6 +76,7 @@ body{ overscroll-behavior-y:contain }
   --warn:#9a6700;
 }
 [data-theme="light-hc"]{
+  --hdr-grad:linear-gradient(135deg,#218bff,#0349b4); --hdr-bg:#f0f3f6; --acc-soft:rgba(3,73,180,.14);
   --bg:#ffffff; --bg-subtle:#ffffff; --bg-inset:#eaeef2;
   --border:#424a53; --fg:#0a0c10; --fg-muted:#4b535d; --fg-subtle:#57606a;
   --accent:#0349b4; --accent-bg:#1168d1; --accent-fg:#ffffff;
@@ -79,13 +84,158 @@ body{ overscroll-behavior-y:contain }
   --warn:#7d4e00;
 }
 [data-theme="colorblind"]{
+  --hdr-grad:linear-gradient(135deg,#f0883e,#bc4c00); --hdr-bg:#161b22; --acc-soft:rgba(240,136,62,.16);
   --bg:#0d1117; --bg-subtle:#161b22; --bg-inset:#21262d;
   --border:#30363d; --fg:#c9d1d9; --fg-muted:#8b949e; --fg-subtle:#6e7681;
   --accent:#58a6ff; --accent-bg:#1f6feb; --accent-fg:#ffffff;
   --success:#58a6ff; --success-bg:#1f6feb; --danger:#f0883e; --danger-bg:#bc4c00;
   --warn:#d29922;
 }
-
+/* Nord 色板(arcticicestudio/nord, WCAG AA): 冰蓝主色贴合"水/洗衣"业务 */
+[data-theme="nord"]{
+  --hdr-grad:linear-gradient(135deg,#88c0d0,#81a1c1); --hdr-bg:#3b4252; --acc-soft:rgba(136,192,208,.18);
+  --bg:#2e3440; --bg-subtle:#3b4252; --bg-inset:#434c5e;
+  --border:#4c566a; --fg:#eceff4; --fg-muted:#d8dee9; --fg-subtle:#c0c8d4;
+  --accent:#88c0d0; --accent-bg:#81a1c1; --accent-fg:#2e3440;
+  --success:#a3be8c; --success-bg:#618864; --danger:#bf616a; --danger-bg:#a8404c;
+  --warn:#ebcb8b;
+}
+[data-theme="nord-light"]{
+  --hdr-grad:linear-gradient(135deg,#81a1c1,#5e81ac); --hdr-bg:#e5e9f0; --acc-soft:rgba(94,129,172,.14);
+  --bg:#eceff4; --bg-subtle:#e5e9f0; --bg-inset:#d8dee9;
+  --border:#c0c8d4; --fg:#2e3440; --fg-muted:#4c566a; --fg-subtle:#616b7c;
+  --accent:#5e81ac; --accent-bg:#5e81ac; --accent-fg:#eceff4;
+  --success:#4c7a34; --success-bg:#4c7a34; --danger:#a8404c; --danger-bg:#a8404c;
+  --warn:#8a6420;
+}
+/* ====== 1.1.3 视觉体系: 主题供色(hdr-grad/hdr-bg), html 前缀保特异性, zoom 字号 ====== */
+:root{
+  --card-r:16px;
+  --card-gap:12px;
+  --acc-soft:rgba(88,166,255,.16);
+  --acc-ripple:rgba(255,255,255,.5);
+  --hdr-bg:var(--bg-subtle);
+  --dur:1;
+}
+/* 卡片: 大圆角+双层阴影(html 前缀确保覆盖原生定义) */
+html .card{
+  border-radius:var(--card-r);
+  border:0 solid var(--border);
+  box-shadow:0 1px 2px rgba(8,12,20,.10), 0 6px 18px rgba(8,12,20,.10);
+  margin-bottom:var(--card-gap);
+}
+[data-cardr="big"]{ --card-r:20px; }
+[data-cardr="small"]{ --card-r:10px; --card-gap:8px; }
+/* 页头/底栏: 主题底色+渐变点缀, 文字仍用 --fg 保证对比 */
+html .hd{ background:var(--hdr-bg); border-bottom:none; position:relative; z-index:2; }
+html .hd::before{
+  content:''; position:absolute; inset:0; z-index:0;
+  background:var(--hdr-grad); opacity:.16;
+  -webkit-mask-image:linear-gradient(180deg,#000 30%,transparent);
+  mask-image:linear-gradient(180deg,#000 30%,transparent);
+}
+.hd .hd-r, .hd .hd-t, .hd .hd-s{ position:relative; z-index:1; }
+html .nav{
+  background:linear-gradient(180deg, var(--hdr-bg) 0%, color-mix(in srgb, var(--hdr-bg) 82%, var(--accent)) 100%);
+  border-top:2px solid var(--acc-soft);
+  box-shadow:0 -4px 16px rgba(8,12,20,.12);
+}
+.hd-t{ font-size:17px; font-weight:800; letter-spacing:.3px; }
+/* 按钮体系: 主题渐变主按钮, soft 次按钮, 语义危险 */
+html .btn-p{ background:var(--hdr-grad)!important; border:none!important; color:#fff!important;
+  box-shadow:0 3px 10px color-mix(in srgb, var(--accent) 38%, transparent); }
+html .btn-b{ background:var(--acc-soft)!important; border:none!important; color:var(--accent)!important; }
+html .btn-r{ background:color-mix(in srgb, var(--danger) 14%, transparent)!important;
+  border:none!important; color:var(--danger)!important; }
+button{ border-radius:11px; font-weight:600;
+  transition:transform calc(.16s*var(--dur)) ease, box-shadow calc(.16s*var(--dur)) ease; }
+/* 触控反馈 */
+.ripple-host{ position:relative; overflow:hidden; }
+.hz-ripple{
+  position:absolute; border-radius:50%; pointer-events:none;
+  background:radial-gradient(circle, var(--acc-ripple), transparent 62%);
+  animation:hz-rip .5s ease-out forwards;
+}
+@keyframes hz-rip{ from{transform:scale(0);opacity:.95} to{transform:scale(1);opacity:0} }
+[data-fx="full"] button:active{ transform:translateY(1.5px) scale(.98); }
+[data-fx="full"] .nav-i:active .ic{ transform:scale(.82); }
+html .nav-i .ic{ transition:transform calc(.18s*var(--dur)) cubic-bezier(.34,1.56,.64,1); }
+/* 页面转场 */
+@keyframes hz-push{ from{opacity:0;transform:translateX(26px)} to{opacity:1;transform:none} }
+@keyframes hz-pop{ from{opacity:0;transform:translateX(-26px)} to{opacity:1;transform:none} }
+.page-enter .body{ animation:hz-push calc(.22s*var(--dur)) cubic-bezier(.2,.8,.2,1); }
+.page-leave .body{ animation:hz-pop calc(.22s*var(--dur)) cubic-bezier(.2,.8,.2,1); }
+@keyframes hz-stagger{ from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:none} }
+[data-fx="full"] .page-enter .card{ animation:hz-stagger calc(.3s*var(--dur)) cubic-bezier(.2,.8,.2,1) both; }
+[data-fx="full"] .page-enter .card:nth-child(2){ animation-delay:45ms }
+[data-fx="full"] .page-enter .card:nth-child(3){ animation-delay:90ms }
+[data-fx="full"] .page-enter .card:nth-child(4){ animation-delay:135ms }
+[data-fx="full"] .page-enter .card:nth-child(5){ animation-delay:180ms }
+[data-fx="full"] .page-enter .card:nth-child(6){ animation-delay:225ms }
+@keyframes hz-wave{from{transform:translateX(-100%)}to{transform:translateX(250%)}}
+[data-fx="off"] *, [data-fx="off"] *::before, [data-fx="off"] *::after{
+  animation:none!important; transition:none!important;
+}
+/* 底栏药丸 */
+html .nav{ padding-bottom:env(safe-area-inset-bottom); position:relative; }
+html .nav-i{ position:relative; padding:7px 2px 8px; }
+html .nav-i .hz-pill{
+  position:absolute; left:50%; top:4px; transform:translateX(-50%);
+  width:48px; height:30px; border-radius:99px; background:var(--acc-soft);
+  opacity:0; transition:opacity calc(.2s*var(--dur)) ease, width calc(.2s*var(--dur)) cubic-bezier(.34,1.56,.64,1);
+}
+html .nav-i.on .hz-pill{ opacity:1; width:56px; }
+html .nav-i.on{ color:var(--accent); font-weight:600; }
+/* toast 胶囊 */
+#toast{ position:fixed; left:50%; bottom:calc(64px + env(safe-area-inset-bottom));
+  transform:translateX(-50%) translateY(20px);
+  background:color-mix(in srgb, var(--fg) 92%, transparent); color:var(--bg);
+  font-size:12.5px; font-weight:600; padding:9px 18px; border-radius:99px;
+  box-shadow:0 6px 20px rgba(0,0,0,.35); opacity:0; z-index:9500;
+  transition:opacity .2s ease, transform .2s cubic-bezier(.34,1.56,.64,1);
+  pointer-events:none; max-width:82%; text-align:center; }
+#toast.on{ opacity:1; transform:translateX(-50%) translateY(0); }
+/* 对话框缩放进场 */
+.dlg{ animation:dlg-in calc(.2s*var(--dur)) cubic-bezier(.34,1.56,.64,1); }
+@keyframes dlg-in{ from{opacity:0;transform:scale(.92) translateY(10px)} to{opacity:1;transform:none} }
+/* 空状态 */
+.hz-empty{ text-align:center; padding:26px 12px; color:var(--fg-muted); }
+.hz-empty .e-ic{ font-size:30px; opacity:.5; display:block; margin-bottom:8px; }
+/* 背景壁纸层 */
+body::before{
+  content:''; position:fixed; inset:0; z-index:-1; pointer-events:none;
+  background-image:var(--wall-img,none); background-size:cover; background-position:center;
+  opacity:var(--wall-opa,0);
+}
+body::after{
+  content:''; position:fixed; inset:0; z-index:-1; pointer-events:none;
+  background:rgba(8,13,20,var(--wall-dim,0));
+}
+/* 字号: zoom 全组件等比(含底栏/设置/卡片) */
+html[data-fs="big"] body{ zoom:1.08; }
+html[data-fs="xl"] body{ zoom:1.16; }
+/* 媒体网格与删除角标 */
+.hz-mgrid{ display:flex; gap:7px; flex-wrap:wrap; }
+.hz-mi{ width:56px; height:56px; border-radius:9px; background:var(--bg-inset); border:2px solid transparent; position:relative; overflow:hidden; cursor:pointer; background-size:cover; background-position:center; }
+.hz-mi.on{ border-color:var(--accent); }
+.hz-mi .hz-dur{ position:absolute; right:3px; bottom:3px; font-size:8px; background:rgba(0,0,0,.6); padding:0 3px; border-radius:3px; color:#fff; }
+.hz-mi .hz-x{
+  position:absolute; right:2px; top:2px; width:16px; height:16px; border-radius:50%;
+  background:rgba(0,0,0,.55); color:#fff; font-size:11px; line-height:16px; text-align:center;
+  display:none; cursor:pointer;
+}
+.hz-mi .hz-x{ display:block; }
+/* 配置档案 chips */
+.hz-prof{ display:flex; gap:7px; flex-wrap:wrap; align-items:center; margin-bottom:9px; }
+.hz-prof .pc{
+  padding:5px 12px; border-radius:99px; font-size:11.5px; cursor:pointer;
+  background:var(--bg-inset); border:1px solid var(--border); color:var(--fg-muted);
+}
+.hz-prof .pc.on{ background:var(--acc-soft); border-color:var(--accent); color:var(--accent); font-weight:600; }
+.hz-prof .pact{
+  padding:5px 10px; border-radius:99px; font-size:11.5px; cursor:pointer;
+  background:transparent; border:1px dashed var(--border); color:var(--fg-muted);
+}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;padding:0;height:100%}
 body{
@@ -94,19 +244,20 @@ body{
   font-size:14px;line-height:1.5;display:flex;flex-direction:column;overflow:hidden;
   transition:background .18s ease,color .18s ease;
 }
-.hd{flex:none;padding:11px 16px 9px;background:var(--bg-subtle);border-bottom:1px solid var(--border)}
+.hd{flex:none;padding:16px 16px 13px;background:var(--hdr-bg);border-bottom:1px solid var(--border)}
 .hd-r{display:flex;align-items:center;gap:8px}
 .hd-back{flex:none;width:30px;height:30px;border-radius:6px;background:var(--bg-inset);
   color:var(--fg-muted);border:1px solid var(--border);font-size:17px;line-height:1;cursor:pointer;padding:0}
-.hd-back.hide{visibility:hidden}
-.hd-mark{display:inline-block;width:13px;height:13px;margin-right:7px;vertical-align:-2px;background:linear-gradient(160deg,#38d6f5,#1a45cc);border-radius:50% 50% 50% 0;transform:rotate(-45deg)}
+.hd-back.hide{display:none}
+.hd-mark{display:inline-block;width:13px;height:13px;margin-right:7px;vertical-align:-2px;background:var(--hdr-grad);border-radius:50% 50% 50% 0;transform:rotate(-45deg)}
   .hd-t{font-size:16px;font-weight:600}
 .hd-s{font-size:11.5px;color:var(--fg-muted);margin-top:2px}
 .body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:10px 10px 18px}
 .nav{flex:none;display:flex;background:var(--bg-subtle);border-top:1px solid var(--border);
   padding-bottom:env(safe-area-inset-bottom)}
-.nav-i{flex:1;padding:6px 2px 7px;text-align:center;cursor:pointer;color:var(--fg-muted);font-size:10.5px}
+.nav-i{flex:1;padding:6px 2px 7px;text-align:center;cursor:pointer;color:var(--fg-muted);font-size:11.5px;position:relative}
 .nav-i .ic{display:block;font-size:17px;line-height:1.25}
+.nav-i.on{color:var(--accent);text-shadow:0 0 .5px currentColor}
 .nav-i.on{color:var(--accent)}
 
 .card{background:var(--bg-subtle);border:1px solid var(--border);border-radius:6px;padding:12px 13px;margin-bottom:8px}
@@ -325,8 +476,8 @@ body{
 /* 扫码大键: 整页最上面那个, 比别的按键都大 */
 .bigscan{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
   min-height:92px;margin-bottom:6px;border:0;border-radius:11px;cursor:pointer;
-  background:linear-gradient(135deg,#38d6f5,#1b8af2 55%,#1a45cc);color:#fff;
-  box-shadow:0 3px 10px rgba(26,69,204,.28)}
+  background:var(--hdr-grad);color:#fff;
+  box-shadow:0 3px 10px color-mix(in srgb, var(--accent) 38%, transparent)}
 .bigscan:active{opacity:.86;transform:translateY(1px)}
 .bigscan-i{font-size:30px;line-height:1;font-weight:400}
 .bigscan-t{font-size:18px;font-weight:700;letter-spacing:.5px}
@@ -382,6 +533,37 @@ body{
 .sum{margin-top:13px;padding:11px 12px;border-radius:11px;background:var(--accent-bg);
   border:1px solid var(--accent);font-size:14px;font-weight:600;color:var(--fg);text-align:center}
 
+
+
+/* ====== 折叠卡/子分组/分段/媒体网格/档案 chips (P2b 丢失补回) ====== */
+.card.foldcard{ padding:0; overflow:hidden; }
+.card.foldcard>h2{ cursor:pointer; user-select:none; margin:0; padding:18px 18px 15px; font-size:16px; }
+.card.foldcard>h2::after{ content:'▾'; float:right; transition:transform .2s; font-size:14px; color:var(--fg-muted); }
+.card.foldcard.closed>h2::after{ transform:rotate(-90deg); }
+.card.foldcard>.fold-b{ overflow:hidden; transition:max-height .25s ease,opacity .2s ease; padding:0 13px 12px; }
+[data-fx='off'] .card.foldcard>.fold-b{ transition:none; }
+.card.foldcard.closed>.fold-b.hidef{ max-height:0!important; opacity:0; padding-top:0; padding-bottom:0; }
+.subfold{ border:1px solid var(--border); border-radius:10px; margin-bottom:8px; overflow:hidden; }
+.subfold>.sf-h{ display:flex; align-items:center; padding:12px 14px; font-size:13.5px; font-weight:600; cursor:pointer; user-select:none; }
+.subfold>.sf-h::after{ content:'▾'; margin-left:auto; font-size:10px; color:var(--fg-muted); transition:transform .2s; }
+.subfold.closed>.sf-h::after{ transform:rotate(-90deg); }
+.subfold>.sf-b{ padding:2px 11px 9px; overflow:hidden; transition:max-height .25s ease,opacity .2s ease; }
+.subfold.closed>.sf-b{ max-height:0!important; opacity:0; padding-top:0; padding-bottom:0; }
+.hz-seg{ display:inline-flex; border-radius:8px; overflow:hidden; border:1px solid var(--border); flex-wrap:wrap; }
+.hz-seg span{ padding:5px 10px; font-size:11.5px; color:var(--fg-muted); cursor:pointer; }
+.hz-seg span.on{ background:var(--acc-soft); color:var(--accent); font-weight:600; }
+.hz-sw{ display:inline-block; width:22px; height:22px; border-radius:7px; cursor:pointer; border:2px solid transparent; vertical-align:middle; }
+.hz-sw.on{ border-color:var(--accent); }
+.hz-mgrid{ display:flex; gap:7px; flex-wrap:wrap; }
+.hz-mi{ width:56px; height:56px; border-radius:9px; background:var(--bg-inset); border:2px solid transparent; position:relative; overflow:hidden; cursor:pointer; background-size:cover; background-position:center; }
+.hz-mi.on{ border-color:var(--accent); }
+.hz-mi .hz-dur{ position:absolute; right:3px; bottom:3px; font-size:8px; background:rgba(0,0,0,.6); padding:0 3px; border-radius:3px; color:#fff; }
+.hz-mi .hz-x{ position:absolute; right:2px; top:2px; width:16px; height:16px; border-radius:50%; background:rgba(0,0,0,.55); color:#fff; font-size:11px; line-height:16px; text-align:center; display:block; cursor:pointer; }
+.hz-prof{ display:flex; gap:7px; flex-wrap:wrap; align-items:center; margin-bottom:9px; }
+.hz-prof .pc{ padding:5px 12px; border-radius:99px; font-size:11.5px; cursor:pointer; background:var(--bg-inset); border:1px solid var(--border); color:var(--fg-muted); }
+.hz-prof .pc.on{ background:var(--acc-soft); border-color:var(--accent); color:var(--accent); font-weight:600; }
+.hz-empty{ text-align:center; padding:26px 12px; color:var(--fg-muted); }
+.hz-empty .e-ic{ font-size:30px; opacity:.5; display:block; margin-bottom:8px; }
 </style>
 </head>
 <body>
@@ -443,10 +625,13 @@ function log(msg, cls){
   if(CUR === 'log') paint();
 }
 function toast(msg){
-  var el = $('toast'); if(!el) return;
-  el.textContent = msg; el.className = 'toast on';
+  var t = $('toast');
+  if(!t){
+    t = document.createElement('div'); t.id='toast'; document.body.appendChild(t);
+  }
+  t.textContent = msg; t.className = 'on';
   clearTimeout(toast._t);
-  toast._t = setTimeout(function(){ el.className = 'toast'; }, 1800);
+  toast._t = setTimeout(function(){ t.className=''; }, 1900);
 }
 
 /* 弹窗: opt = {title, body, actions:[{label, cls, fn}]} */
@@ -1088,6 +1273,9 @@ function accLoad(){
     if(o.curWater) ACC.curWater = o.curWater;
     if(o.curLaundry) ACC.curLaundry = o.curLaundry;
     if(o.theme) ACC.theme = o.theme;
+    /* 个性化(动效/启动页/折叠)恢复: 之前 accLoad 不读 fx, 一重启全丢 */
+    if(o.fx && typeof o.fx === 'object') ACC.fx = o.fx;
+    else if(ACC.fx == null) ACC.fx = null;
     // 一次性迁移: v7 起默认改浅色. 老数据没 themeVer, 说明 theme 还是旧版默认值,
     // 不是用户主动选的, 直接改成 light 并打上 themeVer. 之后用户自己切主题会覆盖.
     if(o.themeVer !== 2){
@@ -1216,7 +1404,28 @@ function registerApp(app){
 }
 function enterApp(id){ CUR = id; PAGE_STACK = []; paint(); }
 function pushPage(page){ PAGE_STACK.push(page); paint(); }
-function popPage(){ if(PAGE_STACK.length){ PAGE_STACK.pop(); paint(); } }
+function pageEnterClass(){
+  return (ACC.fx && (ACC.fx.fx === 'full' || ACC.fx.fx === 'sys')) ? ' page-enter' : '';
+}
+function hzTransitionHost(host, kind){
+  try{ hzTransition(host && host.classList && host.classList.contains('body') ? host : (host && host.closest ? host.closest('.body') : null), kind); }catch(e){}
+}
+var HZ_TRANS_AT = 0;
+function hzTransition(el, kind){
+  /* 1s 冷却: boot 双 paint 不再重播入场动画 */
+  if(!el) return;
+  var fx = ACC.fx && ACC.fx.fx ? ACC.fx.fx : 'full';
+  if(fx === 'off' || fx === 'lite') return;
+  var now = Date.now();
+  if(now - HZ_TRANS_AT < 1000) return;
+  HZ_TRANS_AT = now;
+  el.classList.remove('page-enter','page-leave');
+  void el.offsetWidth;
+  el.classList.add(kind === 'leave' ? 'page-leave' : 'page-enter');
+  setTimeout(function(){ el.classList.remove('page-enter','page-leave'); }, 320);
+}
+function popPage(){
+  try{ bgAudioDuck(false); }catch(e){} if(PAGE_STACK.length){ PAGE_STACK.pop(); paint(); } }
 function curApp(){
   for(var i=0;i<APPS.length;i++) if(APPS[i].id===CUR) return APPS[i];
   return null;
@@ -1224,13 +1433,14 @@ function curApp(){
 function curPage(){ return PAGE_STACK.length ? PAGE_STACK[PAGE_STACK.length-1] : null; }
 
 var LAST_KEY = '';
+var LAST_ANIM_KEY = '';
 function paint(){
   var app = curApp(); if(!app) return;
   var page = curPage();
   var key = CUR + '|' + (page ? (page.title || '') : '');
   var keepTop = (key === LAST_KEY) ? $('body').scrollTop : 0;
   LAST_KEY = key;
-  $('hdTitle').textContent = page ? (page.title || app.name) : app.name;
+  $('hdTitle').innerHTML = (app.icon ? app.icon + ' ' : '') + esc(page ? (page.title || app.name) : app.name);
   $('hdSub').textContent = page ? (page.sub || '') : (app.sub || '');
   $('hdBack').className = 'hd-back' + (PAGE_STACK.length ? '' : ' hide');
   var host = $('body');
@@ -1247,12 +1457,17 @@ function paint(){
   if(HASNATIVE && window.HzNative.setDepth){
     try{ window.HzNative.setDepth(PAGE_STACK.length); }catch(e){}
   }
+  /* 只在真实切页(页键变化)时播入场动画; 同页数据刷新(余额/订单回调)不播 -> 不再闪烁 */
+  if(key !== LAST_ANIM_KEY){
+    LAST_ANIM_KEY = key;
+    try{ hzTransitionHost(document.querySelector('.body'), 'enter'); }catch(e){}
+  }
 }
 function renderNav(){
   var el = $('nav');
   el.innerHTML = APPS.map(function(a){
     return '<div class="nav-i'+(a.id===CUR?' on':'')+'" data-app="'+a.id+'">'
-      + '<span class="ic">'+a.icon+'</span>'+esc(a.name)+'</div>';
+      + '<span class="hz-pill"></span><span class="ic">'+a.icon+'</span>'+esc(a.name)+'</div>';
   }).join('');
   Array.prototype.forEach.call(el.children, function(c){
     c.onclick = function(){ enterApp(c.getAttribute('data-app')); };
@@ -4454,6 +4669,7 @@ function uTShort(v){
    5. 取水页
    ============================================================ */
 function pageWater(host){
+  try{ bgAudioDuck(true); }catch(e){}
   var signed = !!S.token;
   var saved = (ACC.water || []).length;
   var h = '';
@@ -5149,7 +5365,7 @@ function askPerm(kind){
 /* ============================================================
    6.6 更新: 镜像优先, 直连兜底
    ============================================================ */
-var APP_VER = '1.1.2';
+var APP_VER = '1.2.0';
 var VER_KEY = 'hz_ver_v10';
 /* GitHub 仓库(owner/repo). 更新源与"源码仓库"都靠它拼地址.
    发版时把按架构打的包传到 Release, 名字要对上 updApkName() 的返回值. */
@@ -5324,6 +5540,14 @@ function fetchRemoteVer(done){
    条目写作口径: 只按发布页发过的版本记账(用户只看得见那几版), 不写内部小版本号, 不写函数名与行号. 当前只有 1.0.3 与 1.1.0 两条, 1.1.0 里是 1.0.3 之后的全部改动.
    --------------------------------------------------------------- */
 var CHANGELOG = {
+  '1.2.0': { date:'2026-11-14', notes:[
+    '界面全面美化: 新增 Nord 深/浅两套主题(共八套), 卡片圆角加大, 主按钮渐变',
+    '四项动效: 按压涟漪回弹, 页面卡片依次上浮, 余额数字滚动, 洗涤进度水波',
+    '新增个性化设置: 动效强度, 卡片圆角与风格, 字号, 强调色, 背景图片/视频(音乐音量/透明度/模糊/压暗全可调), 我的媒体库',
+    '新增启动页: 注水律动动画, 文案加大; 等待方式可调(动画播完/加载完就进/跟随系统)',
+    '设置页与长内容卡片全部支持折叠, 状态记忆',
+    '应用图标重绘: 洗衣机+保温杯'
+  ]},
   '1.1.2': { date:'2026-11-10', notes:[
     '下载改成四个源同时开工, 谁先下完谁算数: 点下载那一刻就真的在下了, 不再先花几十秒逐个探测源',
     '点下载后按钮立刻变成"下载中 NN%", 进度卡立刻从空闲切到正在下载, 不再出现点了半天没反应的空窗',
@@ -5541,6 +5765,8 @@ function updSyncCached(){
   if(!t || cmpVer(t, APP_VER) <= 0) return;          /* 旧包/未知版本, 不认 */
   /* 记账说下好了, 但包文件已经被安装器/系统清掉: 只能如实重下, 不冒充已下好 */
   if(c.file === false) return;
+  /* 包自己报的版本与记账对不上(远端资产没跟上版本号的事故): 不算已下好 */
+  if(c.real && t && String(c.real) !== t){ log('缓存的包是 v' + c.real + ', 记账却写着 v' + t + ', 需要重新下载', 'w'); return; }
   if(UPD.state === 'checking') return;
   UPD.state = 'ready'; UPD.readyTag = t;
   if(UPD.remote && cmpVer(UPD.remote, t) === 0) UPD.remoteMeta = UPD.remoteMeta || null;
@@ -5579,7 +5805,8 @@ function checkUpdate(){
         try{
           var c2 = HASNATIVE && window.HzNative.updateCached
             ? JSON.parse(window.HzNative.updateCached() || 'null') : null;
-          if(c2 && c2.ok && c2.file !== false && String(c2.tag || '') === String(tag)){
+          if(c2 && c2.ok && c2.file !== false && String(c2.tag || '') === String(tag)
+             && (!c2.real || String(c2.real) === String(tag))){
             UPD.state = 'ready'; UPD.readyTag = String(c2.tag);
             updPaintCheck();
             log('缓存里还有一个 v' + c2.tag + ' 没装, 按钮已切成安装', 's');
@@ -5620,7 +5847,8 @@ function doUpdate(tag){
   try{
     if(window.HzNative.updateCached && window.HzNative.installReady){
       var cc = JSON.parse(window.HzNative.updateCached() || 'null');
-      if(cc && cc.ok && cc.file !== false && String(cc.tag || '') === String(tag)){
+      if(cc && cc.ok && cc.file !== false && String(cc.tag || '') === String(tag)
+         && (!cc.real || String(cc.real) === String(tag))){
         log('缓存里已有 v' + cc.tag + ' 的包(' + updFmtSize(cc.size) + '), 不重下直接安装', 's');
         doInstallReady();
         return;
@@ -7676,7 +7904,9 @@ var THEMES = [
   { id:'hc',         name:'Dark 高对比',    sw:['#0a0c10','#151b23','#71b7ff'] },
   { id:'light',      name:'GitHub Light',   sw:['#ffffff','#eaeef2','#0969da'] },
   { id:'light-hc',   name:'Light 高对比',   sw:['#ffffff','#eaeef2','#0349b4'] },
-  { id:'colorblind', name:'Dark 色盲友好',  sw:['#0d1117','#21262d','#f0883e'] }
+  { id:'colorblind', name:'Dark 色盲友好',  sw:['#0d1117','#21262d','#f0883e'] },
+  { id:'nord',       name:'Nord Dark',      sw:['#2e3440','#434c5e','#88c0d0'] },
+  { id:'nord-light', name:'Nord Light',     sw:['#eceff4','#d8dee9','#5e81ac'] }
 ];
 function themeName(id){
   var t = THEMES.filter(function(x){ return x.id === id; })[0];
@@ -7687,8 +7917,182 @@ function applyTheme(id){
   document.documentElement.setAttribute('data-theme', id);
   // 系统状态栏/导航栏跟着换色, 否则浅色页顶着一条深蓝边
   if(HASNATIVE && window.HzNative.theme){
-    try{ window.HzNative.theme(id === 'light' || id === 'light-hc' ? 'light' : 'dark'); }catch(e){}
+    try{ window.HzNative.theme(id === 'light' || id === 'light-hc' || id === 'nord-light' ? 'light' : 'dark'); }catch(e){}
   }
+}
+/* ====== 个性化外观状态与联动(1.1.5) ====== */
+var FX_DEF = { fx:'full', buzz:'on',
+  bgOpa:55, cardOpa:82, dim:30, vidAud:false, vidVol:40, splWait:'anim', splAnim:true, folds:{} };
+/* 配置档案: 每份档案 = 一整套外观设置 + 绑定的媒体文件. active=当前档案名.
+   profiles: { "<名字>": {set:{...FX 字段}, media:["a.jpg","b.mp4"]} }
+   "默认" 档案固定存在, media 为空 = 无壁纸. 文件在档案间共享(不重复占空间), 删档案不删文件. */
+var PROF_DEF = { active:'默认', profiles:{ '默认': { set:null, media:[] } } };
+function fxNormalize(){
+  if(ACC.fx == null) ACC.fx = {};
+  var k;
+  for(k in FX_DEF){ if(ACC.fx[k] == null) ACC.fx[k] = FX_DEF[k]; }
+  if(ACC.prof == null) ACC.prof = JSON.parse(JSON.stringify(PROF_DEF));
+  if(!ACC.prof.profiles || !ACC.prof.profiles[ACC.prof.active]){
+    ACC.prof = JSON.parse(JSON.stringify(PROF_DEF));
+  }
+}
+function profList(){
+  fxNormalize();
+  return Object.keys(ACC.prof.profiles);
+}
+function profCur(){ fxNormalize(); return ACC.prof.profiles[ACC.prof.active]; }
+function profSave(){ fxSave(); }
+function profSwitch(name){
+  fxNormalize();
+  if(!ACC.prof.profiles[name]) return;
+  ACC.prof.active = name;
+  var p = ACC.prof.profiles[name];
+  /* 档案的 set 覆盖当前 fx 字段; 媒体绑定决定壁纸 */
+  var k;
+  for(k in FX_DEF){
+    if(p.set && p.set[k] != null) ACC.fx[k] = p.set[k];
+    else ACC.fx[k] = FX_DEF[k];
+  }
+  ACC.fx.bgMedia = (p.media && p.media.length) ? p.media[0] : '';
+  fxApply(); fxSave();
+}
+function profSaveCurrent(name){
+  fxNormalize();
+  var media = [];
+  if(ACC.fx.bgMedia) media = [ACC.fx.bgMedia];
+  ACC.prof.profiles[name] = { set:{
+    fx:ACC.fx.fx, cardr:ACC.fx.cardr, fs:ACC.fx.fs,
+    bgOpa:ACC.fx.bgOpa, dim:ACC.fx.dim, vidAud:ACC.fx.vidAud, vidVol:ACC.fx.vidVol,
+    splWait:ACC.fx.splWait, splAnim:ACC.fx.splAnim
+  }, media: media };
+  ACC.prof.active = name;
+  fxSave();
+}
+function profDelete(name){
+  fxNormalize();
+  if(name === '默认') { toast('默认档案不能删'); return; }
+  delete ACC.prof.profiles[name];
+  if(ACC.prof.active === name) profSwitch('默认');
+  fxSave();
+}
+function profRename(oldN, newN){
+  fxNormalize();
+  if(!ACC.prof.profiles[oldN] || !newN || ACC.prof.profiles[newN]) return false;
+  ACC.prof.profiles[newN] = ACC.prof.profiles[oldN];
+  delete ACC.prof.profiles[oldN];
+  if(ACC.prof.active === oldN) ACC.prof.active = newN;
+  fxSave(); return true;
+}
+function profReset(){
+  fxNormalize();
+  var keepSpl = ACC.fx.splWait, keepAnim = ACC.fx.splAnim;
+  var k;
+  for(k in FX_DEF) ACC.fx[k] = FX_DEF[k];
+  ACC.fx.splWait = keepSpl; ACC.fx.splAnim = keepAnim;   /* 启动页偏好保留 */
+  ACC.prof.active = '默认';
+  ACC.prof.profiles = { '默认': { set:null, media:[] } };
+  fxApply(); fxSave();
+}
+function accentOf(){
+  /* 主题自带的 accent 优先, 用户只在个性化里显式选过才覆盖 */
+  return ACC.fx.accent || '';
+}
+function fxApply(){
+  fxNormalize();
+  var d = document.documentElement;
+  d.setAttribute('data-fx', ACC.fx.fx);
+  d.setAttribute('data-cardr', ACC.fx.cardr);
+  if(ACC.fx.fs === 'big') d.setAttribute('data-fs','big');
+  else if(ACC.fx.fs === 'xl') d.setAttribute('data-fs','xl');
+  else d.removeAttribute('data-fs');
+  /* 强调色已删: 按钮渐变/soft 全部由主题 CSS 变量提供, JS 不再干预 */
+  var st = document.getElementById('fxStyle') || (function(){
+    var e = document.createElement('style'); e.id='fxStyle'; document.head.appendChild(e); return e; })();
+  /* 背景层: 类型由媒体文件自动决定, 不再手动选 */
+  var mi = bgMediaFind(ACC.fx.bgMedia);
+  var isVid = !!(mi && mi.type === 'vid');
+  var hasWall = !!mi;
+  var url = '';
+  if(mi){
+    var mp = (HASNATIVE && window.HzNative.mediaPath) ? window.HzNative.mediaPath(mi.name) : '';
+    url = 'url("' + (mp || mi.url || mi.poster || '') + '")';
+  }
+  d.style.setProperty('--wall-img', url || 'none');
+  d.style.setProperty('--wall-opa', hasWall ? (ACC.fx.bgOpa/100) : 0);
+  d.style.setProperty('--wall-dim', hasWall ? (ACC.fx.dim/100) : 0);
+  /* 有壁纸时卡片半透明+轻模糊(cardOpa 可调), 文字对比靠压暗层 */
+  if(hasWall){
+    st.textContent += '.card,.hd,.nav{background:rgba(59,66,82,'+(ACC.fx.cardOpa/100)+')!important;' +
+      'backdrop-filter:blur(10px)!important;}';
+  }
+  bgVideoSync();
+}
+function fxSave(){
+  var js = JSON.stringify(ACC);
+  try{ localStorage.setItem(ACC_KEY, js); }catch(e){}
+  try{ mirPut(ACC_KEY, js); }catch(e){}
+  try{ dumpSoon(); }catch(e){}
+}
+/* ====== 媒体库(页面侧; 原生桥 mediaPick/mediaList/mediaDelete/mediaPath) ====== */
+var MEDIA_CACHE = null;
+function bgMediaFind(name){
+  if(!name) return null;
+  var l = bgMediaList();
+  for(var i=0;i<l.length;i++){ if(l[i].name === name) return l[i]; }
+  return null;
+}
+function bgMediaList(){
+  if(MEDIA_CACHE) return MEDIA_CACHE;
+  var out = [];
+  try{
+    if(HASNATIVE && window.HzNative.mediaList){
+      out = JSON.parse(window.HzNative.mediaList() || '[]');
+    }
+  }catch(e){ out = []; }
+  MEDIA_CACHE = out; return out;
+}
+function bgMediaPath(name){
+  try{ return (HASNATIVE && window.HzNative.mediaPath) ? window.HzNative.mediaPath(name) : ''; }
+  catch(e){ return ''; }
+}
+function bgMediaRefresh(){ MEDIA_CACHE = null; }
+function bgMediaDelete(name){
+  try{ if(HASNATIVE && window.HzNative.mediaDelete) window.HzNative.mediaDelete(name); }catch(e){}
+  bgMediaRefresh();
+  if(ACC.fx.bgMedia === name){ ACC.fx.bgMedia = ''; }
+  fxApply(); fxSave();
+}
+/* 视频背景: 全局一个 <video> 浮层, 音量/静音由设置驱动, 页面隐藏时暂停 */
+var BGVID = null;
+function bgVideoSync(){
+  var want = ACC.fx.bgType === 'vid';
+  var mi = want ? bgMediaFind(ACC.fx.bgMedia) : null;
+  if(want && mi && HASNATIVE){
+    if(!BGVID){
+      BGVID = document.createElement('video');
+      BGVID.setAttribute('playsinline','');
+      BGVID.loop = true;
+      BGVID.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2;pointer-events:none';
+      document.body.appendChild(BGVID);
+      document.addEventListener('visibilitychange', function(){
+        if(!BGVID) return;
+        if(document.hidden) BGVID.pause();
+        else if(ACC.fx.bgType === 'vid') BGVID.play().catch(function(){});
+      });
+    }
+    var p = bgMediaPath(mi.name);
+    if(BGVID.getAttribute('src') !== p){ BGVID.setAttribute('src', p); BGVID.load(); }
+    BGVID.muted = !ACC.fx.vidAud;
+    BGVID.volume = Math.min(1, ACC.fx.vidVol/100);
+    BGVID.style.display = 'block';
+    BGVID.play().catch(function(){});
+  }else if(BGVID){
+    BGVID.pause(); BGVID.style.display = 'none';
+  }
+}
+/* 扫码页进入时暂停视频音乐, 离开恢复(护栏) */
+function bgAudioDuck(duck){
+  if(BGVID){ BGVID.muted = duck ? true : !ACC.fx.vidAud; }
 }
 /* 赞赏码内联成 data URI.
    壳里页面是 loadDataWithBaseURL("https://localhost/", ...) 注入的, base URL 不是
@@ -7719,31 +8123,158 @@ function showReward(){
   };
 }
 
+function foldCard(id, title, body, open){
+  return '<div class="card foldcard'+(open?'':' closed')+'" data-fold="'+id+'">'
+    + '<h2 data-foldh="'+id+'">'+title+'</h2>'
+    + '<div class="fold-b'+(open?'':' hidef')+'" data-foldb="'+id+'">'+body+'</div></div>';
+}
+function foldWire(host){
+  Array.prototype.forEach.call(host.querySelectorAll('[data-foldh]'), function(n){
+    n.onclick = function(){
+      var card = n.parentElement, b = card.querySelector('.fold-b');
+      card.classList.toggle('closed');
+      var closed = card.classList.contains('closed');
+      b.classList.toggle('hidef', closed);
+      fxNormalize(); ACC.fx.folds[n.getAttribute('data-foldh')] = !closed; fxSave();
+    };
+  });
+  /* 恢复记忆的折叠态 */
+  fxNormalize();
+  Array.prototype.forEach.call(host.querySelectorAll('[data-fold]'), function(card){
+    var id = card.getAttribute('data-fold');
+    if(ACC.fx.folds[id] === false){ card.classList.add('closed');
+      var b = card.querySelector('.fold-b'); if(b) b.classList.add('hidef'); }
+  });
+}
+function hzSeg(id, items, cur, cb){
+  var h = '<span class="hz-seg" data-hzseg="'+id+'">';
+  items.forEach(function(it){ h += '<span data-v="'+it[0]+'" class="'+(String(cur)===String(it[0])?'on':'')+'">'+it[1]+'</span>'; });
+  return h + '</span>';
+}
+function segWire(host, cb){
+  Array.prototype.forEach.call(host.querySelectorAll('[data-hzseg]'), function(sg){
+    Array.prototype.forEach.call(sg.querySelectorAll('span'), function(sp){
+      sp.onclick = function(){
+        Array.prototype.forEach.call(sg.querySelectorAll('span'), function(x){ x.classList.remove('on'); });
+        sp.classList.add('on');
+        cb(sg.getAttribute('data-hzseg'), sp.getAttribute('data-v'));
+      };
+    });
+  });
+}
 function pageSettings(host){
   var nw = (ACC.water||[]).length, nl = (ACC.laundry||[]).length;
   var h = '';
-
-  h += '<div class="card"><h2>主题 '+badge(themeName(ACC.theme))+'</h2>';
-  h += '<div class="themes">';
-  THEMES.forEach(function(t){
-    h += '<div class="th'+(t.id===ACC.theme?' on':'')+'" data-th="'+t.id+'">'
-      + '<div class="th-t">'+esc(t.name)+'</div>'
-      + '<div class="th-s"><i style="background:'+t.sw[0]+'"></i>'
-      + '<i style="background:'+t.sw[1]+'"></i>'
-      + '<i style="background:'+t.sw[2]+'"></i></div></div>';
-  });
-  h += '</div>';
-  h += '<div class="sub">六套色板取自 GitHub Primer 官方主题, 分别对应它们的 canvas / border / accent 取值. 默认浅色.</div>';
-  h += '</div>';
+  fxNormalize();
 
   h += '<div class="card"><h2>账号 '+badge('取水 '+nw+' / 洗衣 '+nl)+'</h2>';
   h += kv('当前取水账号', S.phone || '未登录');
   h += kv('当前洗衣账号', U.phone || '未登录');
   h += '<div class="row" style="margin-top:9px">'
-    + '<button class="btn-f" id="setWAcc">取水账号</button>'
-    + '<button class="btn-f" id="setLAcc">洗衣账号</button></div>';
+    + '<button class="btn-p btn-f" id="setWAcc">取水账号</button>'
+    + '<button class="btn-p btn-f" id="setLAcc">洗衣账号</button></div>';
   h += '<div class="sub">登录成功后自动记住, 下次点账号直接切换, 不用再收验证码.</div>';
   h += '</div>';
+
+  /* ====== 个性化卡: 主题/动效/启动页 ====== */
+  var pb = '';
+  pb += '<div class="subfold" data-sf="theme"><div class="sf-h" data-sfh="theme">主题</div><div class="sf-b">';
+  pb += '<div class="themes">';
+  THEMES.forEach(function(t){
+    pb += '<div class="th'+(t.id===ACC.theme?' on':'')+'" data-th="'+t.id+'">'
+      + '<div class="th-t">'+esc(t.name)+'</div>'
+      + '<div class="th-s"><i style="background:'+t.sw[0]+'"></i>'
+      + '<i style="background:'+t.sw[1]+'"></i>'
+      + '<i style="background:'+t.sw[2]+'"></i></div></div>';
+  });
+  pb += '</div>';
+  pb += '<div class="sub">八套色板: 六套取自 GitHub Primer 官方主题, Nord 两套取自 arcticicestudio/nord. 默认浅色.</div>';
+  pb += '</div></div>';
+  pb += '<div class="subfold" data-sf="fx"><div class="sf-h" data-sfh="fx">动效</div><div class="sf-b">';
+  pb += '<div class="kv"><em>强度</em>'+hzSeg('fx',[['sys','系统'],['full','完整'],['lite','精简'],['off','关']],ACC.fx.fx)+'</div>';
+  pb += '<div class="kv"><em>震动</em>'+hzSeg('buzz',[['on','开'],['off','关']],ACC.fx.buzz||'on')+'</div>';
+  pb += '<div class="sub">精简=只留涟漪与数字滚动; 关=全部动画关闭, 低端机省电. 震动独立开关, 不随强度.</div>';
+  pb += '</div></div>';
+  pb += '<div class="subfold" data-sf="spl"><div class="sf-h" data-sfh="spl">启动页</div><div class="sf-b">';
+  pb += '<div class="kv"><em>等待方式</em>'+hzSeg('splWait',[['anim','动画播完'],['ready','加载完进'],['sys','系统']],ACC.fx.splWait)+'</div>';
+  pb += '<div class="kv"><em>注水动画</em>'+hzSeg('splAnim',[['on','开'],['off','关']],ACC.fx.splAnim?'on':'off')+'</div>';
+  pb += '<div class="sub">动画播完=冷启动完整播一遍注水(约 1.2s); 加载完进=页面就绪立即进; 系统=热进快、冷进播完.</div>';
+  pb += '</div></div>';
+  h += foldCard('perso', '个性化', pb, ACC.fx.folds.perso === true);
+  h += '<div class="card"><h2>提醒 '
+    + badge(AL.list.length + ' 条', AL.list.length ? 'on' : '') + '</h2>';
+  h += '<div class="row"><button class="btn-p btn-f" id="setAlarm">闹钟管理</button></div>';
+  h += '<div class="sub">两条通道一起登记: 系统时钟 App(厂商闹钟, 系统托管, 本应用被后台清理也照响) + 应用内前台服务(响铃 + 震动 + 全屏界面). 订单在跑时页面会按账单里的完成时刻自动建, 同一单不会重复建.</div>';
+  h += '</div>';
+
+  h += '<div class="card"><h2>更新 '
+    + badge(APP_VER) + '</h2>';
+  h += kv('当前版本', APP_VER);
+  h += kv('上次检查', UPD.lastCheck ? ts2s(UPD.lastCheck) : '没查过');
+  /* 设置页这张卡不重复实现状态机, 直接复用 updCheckLabel,
+     这样两处入口的文字永远一致, 不会出现"一处正在查一处显示空闲". */
+  h += '<div class="row" style="margin-top:9px">'
+    + '<button class="btn-b btn-f" id="setUpdate"'
+    + (UPD.state === 'checking' ? ' disabled style="opacity:.6"' : '')
+    + '>' + esc(updCheckLabel()) + '</button></div>';
+  h += '<div class="sub">镜像源优先, 直连兜底. 下载完交给系统安装器, 不做静默安装.</div>';
+  h += '</div>';
+
+  h += '<div class="card"><h2>赞赏 <span class="pill">自愿</span></h2>';
+  h += '<div class="sub">如果喜欢我的软件, 请我喝杯咖啡吧. 纯自愿, 与任何功能无关, '
+    + '不给也不影响使用, 没有任何解锁或特权.</div>';
+  h += '<div class="row" style="margin-top:9px">'
+    + '<button class="btn-b btn-f" id="setReward">看赞赏码</button></div>';
+  h += '</div>';
+
+  h += '<div class="card"><h2>协议与权限</h2>';
+  h += kv('协议状态', TERMS.agreed && TERMS.ver >= TERMS_VER
+    ? ('已同意 v' + TERMS.ver + ' / ' + ts2s(TERMS.at)) : '未同意');
+  h += kv('本版协议', 'v' + TERMS_VER);
+  h += '<div class="row" style="margin-top:9px">'
+    + '<button class="btn-f" id="setTerms">用户协议</button>'
+    + '<button class="btn-f" id="setPerms">权限</button></div>';
+  h += '<div class="sub">协议只在第一次启动时弹一次, 之后在这里随时能翻. '
+    + '权限页可以重新检测并补授权.</div>';
+  h += '</div>';
+
+  h += foldCard('src', '数据来源', (function(){
+    var t = '';
+    t += kv('胖乖余额', 'user/balance')
+      + kv('胖乖受限', 'user/astrict/list')
+      + kv('胖乖订单', 'order/list + order/detail')
+      + kv('胖乖券包', 'voucherUser/availableList')
+      + kv('胖乖签到', 'signin/doUserSignIn')
+      + kv('胖乖发码', 'common/sms/sendCode')
+      + kv('胖乖出水', 'goods/water/unlock')
+      + kv('U净发码', 'GET /api/v1/captcha')
+      + kv('U净机器', 'devices/scanWasherCode')
+      + kv('U净选机', 'stores/{id}/devices')
+      + kv('U净下单', 'orders/create')
+      + kv('U净订单', 'orders/history')
+      + kv('U净附近门店', 'stores/nearby')
+      + kv('U净附近机器', 'devices/nearby');
+    return t;
+  })(), ACC.fx.folds.src === true);
+
+  h += foldCard('about', '关于', (function(){
+    var t = '';
+    t += kv('版本', APP_VER);
+    t += kv('原生桥', HASNATIVE ? '已接入' : '未接入');
+    t += kv('取水后端', 'userapi.qiekj.com');
+    t += kv('洗衣后端', 'phoenix.ujing.online');
+    /* kv() 会对值做 esc, 标签会被转成文本; 链接类内容必须用 kvH(html 原样插入). */
+    if(REPO){
+      t += kvH('源码仓库', '<a href="#" id="setRepo" '
+        + 'style="color:var(--accent);word-break:break-all">' + esc(REPO_URL) + '</a>');
+    }else{
+      t += kv('源码仓库', '未配置');
+    }
+    t += kv('许可', REPO_LIC + '(不可商用)');
+    t += '<div class="sub">两个账号体系, 两套余额, 两套积分, 两套订单, 互不混算. '
+      + '接新应用只要再 registerApp 一行, 底部导航自动多一格.</div>';
+    return t;
+  })(), ACC.fx.folds.about === true);
 
   h += '<div class="card"><h2>数据</h2>';
   h += kv('已存账号', (nw+nl)+' 个');
@@ -7775,78 +8306,118 @@ function pageSettings(host){
   h += '<div class="sub">会清掉所有账号登录态与主题设置, 不可恢复.</div>';
   h += '</div>';
 
-  h += '<div class="card"><h2>协议与权限</h2>';
-  h += kv('协议状态', TERMS.agreed && TERMS.ver >= TERMS_VER
-    ? ('已同意 v' + TERMS.ver + ' / ' + ts2s(TERMS.at)) : '未同意');
-  h += kv('本版协议', 'v' + TERMS_VER);
-  h += '<div class="row" style="margin-top:9px">'
-    + '<button class="btn-f" id="setTerms">用户协议</button>'
-    + '<button class="btn-f" id="setPerms">权限</button></div>';
-  h += '<div class="sub">协议只在第一次启动时弹一次, 之后在这里随时能翻. '
-    + '权限页可以重新检测并补授权.</div>';
-  h += '</div>';
-
-  h += '<div class="card"><h2>赞赏 <span class="pill">自愿</span></h2>';
-  h += '<div class="sub">如果喜欢我的软件, 请我喝杯咖啡吧. 纯自愿, 与任何功能无关, '
-    + '不给也不影响使用, 没有任何解锁或特权.</div>';
-  h += '<div class="row" style="margin-top:9px">'
-    + '<button class="btn-b btn-f" id="setReward">看赞赏码</button></div>';
-  h += '</div>';
-
-  h += '<div class="card"><h2>更新 '
-    + badge(APP_VER) + '</h2>';
-  h += kv('当前版本', APP_VER);
-  h += kv('上次检查', UPD.lastCheck ? ts2s(UPD.lastCheck) : '没查过');
-  /* 设置页这张卡不重复实现状态机, 直接复用 updCheckLabel,
-     这样两处入口的文字永远一致, 不会出现"一处正在查一处显示空闲". */
-  h += '<div class="row" style="margin-top:9px">'
-    + '<button class="btn-b btn-f" id="setUpdate"'
-    + (UPD.state === 'checking' ? ' disabled style="opacity:.6"' : '')
-    + '>' + esc(updCheckLabel()) + '</button></div>';
-  h += '<div class="sub">镜像源优先, 直连兜底. 下载完交给系统安装器, 不做静默安装.</div>';
-  h += '</div>';
-
-  h += '<div class="card"><h2>提醒 '
-    + badge(AL.list.length + ' 条', AL.list.length ? 'on' : '') + '</h2>';
-  h += '<div class="row"><button class="btn-f" id="setAlarm">闹钟管理</button></div>';
-  h += '<div class="sub">两条通道一起登记: 系统时钟 App(厂商闹钟, 系统托管, 本应用被后台清理也照响) + 应用内前台服务(响铃 + 震动 + 全屏界面). 订单在跑时页面会按账单里的完成时刻自动建, 同一单不会重复建.</div>';
-  h += '</div>';
-
-  h += '<div class="card"><h2>关于</h2>';
-  h += kv('版本', APP_VER);
-  h += kv('原生桥', HASNATIVE ? '已接入' : '未接入');
-  h += kv('取水后端', 'userapi.qiekj.com');
-  h += kv('洗衣后端', 'phoenix.ujing.online');
-  /* kv() 会对值做 esc, 标签会被转成文本; 链接类内容必须用 kvH(html 原样插入). */
-  if(REPO){
-    h += kvH('源码仓库', '<a href="#" id="setRepo" '
-      + 'style="color:var(--accent);word-break:break-all">' + esc(REPO_URL) + '</a>');
-  }else{
-    h += kv('源码仓库', '未配置');
-  }
-  h += kv('许可', REPO_LIC + '(不可商用)');
-  h += '<div class="sub">两个账号体系, 两套余额, 两套积分, 两套订单, 互不混算. '
-    + '接新应用只要再 registerApp 一行, 底部导航自动多一格.</div>';
-  h += '</div>';
-
-  h += '<div class="card"><h2>数据来源</h2>'
-    + kv('胖乖余额', 'user/balance')
-    + kv('胖乖受限', 'user/astrict/list')
-    + kv('胖乖订单', 'order/list + order/detail')
-    + kv('胖乖券包', 'voucherUser/availableList')
-    + kv('胖乖签到', 'signin/doUserSignIn')
-    + kv('胖乖发码', 'common/sms/sendCode')
-    + kv('胖乖出水', 'goods/water/unlock')
-    + kv('U净发码', 'GET /api/v1/captcha')
-    + kv('U净机器', 'devices/scanWasherCode')
-    + kv('U净选机', 'stores/{id}/devices')
-    + kv('U净下单', 'orders/create')
-    + kv('U净订单', 'orders/history')
-    + kv('U净附近门店', 'stores/nearby')
-    + kv('U净附近机器', 'devices/nearby')
-    + '</div>';
-
   host.innerHTML = h;
+
+  foldWire(host);
+  segWire(host, function(id, v){
+    fxNormalize();
+    if(id === 'fx') ACC.fx.fx = v;
+    else if(id === 'buzz') ACC.fx.buzz = v;
+    else if(id === 'cardr') ACC.fx.cardr = v;
+    else if(id === 'fs') ACC.fx.fs = v;
+    else if(id === 'vidAud'){ ACC.fx.vidAud = (v === 'on'); }
+    else if(id === 'splWait') ACC.fx.splWait = v;
+    else if(id === 'splAnim') ACC.fx.splAnim = (v === 'on');
+    try{
+      if(HASNATIVE && window.HzNative.splWait){
+        window.HzNative.splWait(ACC.fx.splWait, !!ACC.fx.splAnim);
+      }
+    }catch(e){}
+    fxApply(); fxSave();
+    log('个性化: ' + id + ' = ' + v);
+  });
+  Array.prototype.forEach.call(host.querySelectorAll('.hz-sw[data-acc]'), function(sw){
+    sw.onclick = function(){
+      Array.prototype.forEach.call(host.querySelectorAll('.hz-sw'), function(x){ x.classList.remove('on'); });
+      sw.classList.add('on');
+      fxNormalize(); ACC.fx.accent = sw.getAttribute('data-acc');
+      fxApply(); fxSave();
+    };
+  });
+  Array.prototype.forEach.call(host.querySelectorAll('.hz-rng[data-rng]'), function(rg){
+    rg.oninput = function(){
+      fxNormalize();
+      var id = rg.getAttribute('data-rng'), v = parseInt(rg.value, 10);
+      ACC.fx[id] = v;
+      var lab = host.querySelector('[data-rngv="'+id+'"]');
+      if(lab) lab.textContent = v + (id === 'cardBlur' ? 'px' : '%');
+      fxApply(); fxSave();
+    };
+  });
+  var pr = $('hzProfRow');
+  if(pr){
+    Array.prototype.forEach.call(pr.querySelectorAll('[data-pc]'), function(pc){
+      pc.onclick = function(){
+        profSwitch(pc.getAttribute('data-pc'));
+        paint(); toast('已切换到 ' + pc.getAttribute('data-pc'));
+      };
+    });
+  }
+  if($('hzProfSave')) $('hzProfSave').onclick = function(){
+    var name = '档案 ' + (profList().length);
+    profSaveCurrent(name);
+    paint(); toast('已保存为 ' + name);
+  };
+  if($('hzProfRename')) $('hzProfRename').onclick = function(){
+    fxNormalize();
+    var cur = ACC.prof.active;
+    if(cur === '默认'){ toast('默认档案不能重命名'); return; }
+    var nn = prompt('重命名档案', cur);
+    if(nn && nn !== cur){
+      if(profRename(cur, nn)){ paint(); toast('已重命名'); }
+      else toast('重命名失败(重名?)');
+    }
+  };
+  if($('hzProfDel')) $('hzProfDel').onclick = function(){
+    fxNormalize();
+    var cur = ACC.prof.active;
+    confirmBox('删除档案', '删除档案 "' + cur + '"\n绑定的文件不会被删除.', '删除', function(){
+      profDelete(cur); paint(); toast('已删除档案');
+    });
+  };
+  if($('hzProfReset')) $('hzProfReset').onclick = function(){
+    confirmBox('清除壁纸效果', '回到纯主题外观(无壁纸), 已上传的文件保留在媒体库, 其它设置不动.', '清除', function(){
+      fxNormalize();
+      ACC.fx.bgMedia = '';
+      profList().forEach(function(pn){
+        var p = ACC.prof.profiles[pn];
+        if(p && p.media) p.media = [];
+      });
+      fxApply(); fxSave(); paint(); toast('已清除壁纸效果');
+    });
+  };
+  var mg = $('hzMGrid');
+  if(mg){
+    Array.prototype.forEach.call(mg.querySelectorAll('[data-mi]'), function(mi){
+      mi.onclick = function(ev){
+        if(ev.target && ev.target.getAttribute && ev.target.getAttribute('data-mx')) return;
+        fxNormalize(); ACC.fx.bgMedia = mi.getAttribute('data-mi');
+        fxApply(); fxSave(); paint();
+        toast('已设为背景');
+      };
+    });
+    Array.prototype.forEach.call(mg.querySelectorAll('[data-mx]'), function(x){
+      x.onclick = function(ev){
+        ev.stopPropagation();
+        var nm = x.getAttribute('data-mx');
+        confirmBox('删除媒体', nm + '\n删除后不可恢复; 正在用作背景会先切回无壁纸. 档案绑定会自动解除.', '删除', function(){
+          /* 档案里解除绑定 */
+          fxNormalize();
+          profList().forEach(function(pn){
+            var p = ACC.prof.profiles[pn];
+            if(p && p.media) p.media = p.media.filter(function(x2){ return x2 !== nm; });
+          });
+          if(ACC.fx.bgMedia === nm){ ACC.fx.bgMedia = ''; }
+          bgMediaDelete(nm); fxApply(); fxSave(); paint(); toast('已删除');
+        });
+      };
+    });
+    var add = $('hzMediaAdd');
+    if(add) add.onclick = function(){ hzMediaPick('gallery', host); };
+    var pg = $('hzPickGal'), pf = $('hzPickFile');
+    if(pg) pg.onclick = function(){ hzMediaPick('gallery', host); };
+    if(pf) pf.onclick = function(){ hzMediaPick('file', host); };
+  }
 
   Array.prototype.forEach.call(host.querySelectorAll('[data-th]'), function(n){
     n.onclick = function(){
@@ -7922,7 +8493,7 @@ function pageSettings(host){
     });
   };
   if($('setClear')) $('setClear').onclick = function(){
-    confirmBox('清空全部本地数据', '账号登录态与主题设置全部清掉, 不可恢复.', '确定清空', function(){
+    confirmBox('清空全部本地数据', '账号登录态与主题设置全部清掉, 不可恢复.\n\n导入的图片和视频默认一并删除; 要保留请先到"个性化-我的媒体"里确认(当前版本先一并删).', '确定清空', function(){
       accClear();
       mirClear(TERMS_KEY); mirClear(AL_KEY);
       S.token=null; S.phone=null; S.dev=null; S.pw=[]; S.imei=null;
@@ -7941,6 +8512,32 @@ function pageSettings(host){
   };
 }
 
+function hzMediaPick(src, host){
+  if(!HASNATIVE || !window.HzNative.mediaPick){
+    toast('这个包没有媒体导入能力'); return;
+  }
+  hzBuzz(10);
+  var rid = 'mpick' + Date.now();
+  window.__hzCb[rid] = function(x){
+    try{
+      if(!x || !x.ok){
+        toast((x && x.err) ? x.err : '没有选中媒体');
+        return;
+      }
+      if(x.oversize){ toast('超出 200MB 上限, 先删一点再导'); return; }
+      bgMediaRefresh();
+      fxNormalize();
+      ACC.fx.bgMedia = x.name;
+      fxApply(); fxSave();
+      log('已导入媒体: ' + x.name, 's');
+      paint();
+      toast('已导入并设为背景');
+      hzBuzz([18,40,18]);
+    }catch(e){ toast('导入处理失败: ' + e.message); }
+  };
+  window.HzNative.mediaPick(src, rid);
+}
+
 /* ============================================================
    9. 注册 + 启动
    ============================================================ */
@@ -7953,6 +8550,45 @@ registerApp({ id:'log', name:'日志', icon:'&#128203;',
 registerApp({ id:'settings', name:'设置', icon:'&#9881;',
   sub:'主题 / 账号 / 数据', home:pageSettings });
 
+/* 全局触控反馈: 涟漪 + 微震动(档位: full=涟漪+震动, lite=只震动, off=全无) */
+function hzBuzz(ms){
+  try{
+    if(ACC.fx && ACC.fx.buzz === 'off') return;   /* 独立开关, 不随动效强度 */
+    if(navigator.vibrate) navigator.vibrate(ms);
+    else if(HASNATIVE && window.HzNative.vibrate) window.HzNative.vibrate(ms);
+  }catch(e){}
+}
+document.addEventListener('click', function(ev){
+  var cur = ACC.fx && ACC.fx.fx ? ACC.fx.fx : 'full';
+  if(cur === 'off') return;
+  var b = ev.target && ev.target.closest ? ev.target.closest('button,.nav-i,.th,.hz-mi') : null;
+  if(!b) return;
+  hzBuzz(12);
+  if(cur === 'lite') return;
+  var r = b.getBoundingClientRect();
+  var d = document.createElement('span');
+  var sz = Math.max(r.width, r.height) * 2.2;
+  d.className = 'hz-ripple';
+  d.style.width = d.style.height = sz + 'px';
+  d.style.left = (ev.clientX - r.left - sz/2) + 'px';
+  d.style.top = (ev.clientY - r.top - sz/2) + 'px';
+  b.appendChild(d);
+  setTimeout(function(){ d.remove(); }, 560);
+}, true);
+/* 数字滚动: 余额类文本更新时滚动过渡 */
+function hzNumTo(el, to, decimals){
+  try{
+    if(!el) return;
+    if(!ACC.fx || ACC.fx.fx === 'off' || ACC.fx.fx === 'lite'){ el.textContent = Number(to).toFixed(decimals == null ? 2 : decimals); return; }
+    var from = parseFloat(el.textContent) || 0, t0 = performance.now();
+    function step(now){
+      var p = Math.min(1, (now - t0) / 300), e = 1 - Math.pow(1 - p, 3);
+      el.textContent = (from + (Number(to) - from) * e).toFixed(decimals == null ? 2 : decimals);
+      if(p < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }catch(e){ try{ el.textContent = String(to); }catch(e2){} }
+}
 $('hdBack').onclick = function(){ popPage(); };
 $('mask').onclick = function(ev){ if(ev.target === $('mask')) closeModal(); };
 window.__back = function(){
@@ -7963,6 +8599,7 @@ window.__back = function(){
 mirRestore();
 accLoad();
 applyTheme(ACC.theme || 'light');
+try{ fxApply(); }catch(e){}
   if(!HASNATIVE){
     webRefreshPerms(function(){
       if($('gate') && $('gate').className.indexOf('on') >= 0) gatePerms();
