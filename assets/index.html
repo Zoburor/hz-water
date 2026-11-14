@@ -5365,7 +5365,7 @@ function askPerm(kind){
 /* ============================================================
    6.6 更新: 镜像优先, 直连兜底
    ============================================================ */
-var APP_VER = '1.2.2';
+var APP_VER = '1.2.0';
 var VER_KEY = 'hz_ver_v10';
 /* GitHub 仓库(owner/repo). 更新源与"源码仓库"都靠它拼地址.
    发版时把按架构打的包传到 Release, 名字要对上 updApkName() 的返回值. */
@@ -5540,14 +5540,6 @@ function fetchRemoteVer(done){
    条目写作口径: 只按发布页发过的版本记账(用户只看得见那几版), 不写内部小版本号, 不写函数名与行号. 当前只有 1.0.3 与 1.1.0 两条, 1.1.0 里是 1.0.3 之后的全部改动.
    --------------------------------------------------------------- */
 var CHANGELOG = {
-  '1.2.2': { date:'2026-11-14', notes:[
-      '修复: 下载完成后更新页偶发卡在"下载中 100%"且无法安装/重新检测的问题(现在会立即恢复为正确状态)'
-    ]},
-  '1.2.1': { date:'2026-11-14', notes:[
-      '修复: 删除已下载的安装包后, 更新页仍误显示"已下好"并安装报错的问题(现在会如实恢复为可重新下载)',
-      '修复: 安装前会再次核对安装包是否真的还在, 不再点出"没有已下载的包"的报错',
-      '下载卡新增"安装已下好的包"按钮, 检测到包后可以直接安装'
-    ]},
   '1.2.0': { date:'2026-11-14', notes:[
       '界面配色与布局更新: 新增 Nord 深/浅两套主题(共八套), 卡片圆角与阴影调整, 页头与底栏跟随主题配色',
       '设置页重排: 账号, 个性化, 提醒, 更新, 赞赏, 权限, 数据来源, 关于; 长内容卡片支持折叠',
@@ -5556,7 +5548,13 @@ var CHANGELOG = {
       '扫码相机支持变焦档位: 1x / 1.5x / 2x / 2.5x / 3x, 默认 2x',
       '应用图标重绘',
       '修复: 冷启动时页面动画重复播放导致的闪烁',
-      '修复: 更新下载期间打开系统选择器界面无响应的问题'
+      '修复: 更新下载期间打开系统选择器界面无响应的问题',
+      '修复: 删除已下载的安装包后, 更新页仍误显示"已下好"并安装报错的问题(现在会如实恢复为可重新下载)',
+      '修复: 安装前会再次核对安装包是否真的还在, 不再点出"没有已下载的包"的报错',
+      '修复: 下载完成后更新页偶发卡在"下载中 100%"且无法安装/重新检测的问题',
+      '修复: 点安装后系统安装器报"解析软件包时出现问题"导致装不上的问题',
+      '修复: 切到后台再回来, 更新页停在旧的下载进度不动的问题',
+      '下载卡新增"安装已下好的包"按钮, 检测到包后可以直接安装'
     ]},
   '1.1.2': { date:'2026-11-10', notes:[
     '下载改成四个源同时开工, 谁先下完谁算数: 点下载那一刻就真的在下了, 不再先花几十秒逐个探测源',
@@ -5741,7 +5739,21 @@ function updCheckTap(){
   var st = UPD.state || 'idle';
   if(st === 'checking') return;
   if(st === 'downloading'){ toast('正在下载, 不重复开始'); return; }
-  if(st === 'ready'){ doInstallReady(); return; }
+  if(st === 'ready'){
+    /* 安装前复核: 包被删过(用户在下载目录删的)就不再让原生报"没有已下载的包" */
+    try{
+      var c0 = JSON.parse(window.HzNative.updateCached() || 'null');
+      if(!c0 || !c0.ok || c0.file === false || (c0.real && c0.real !== String(c0.tag))){
+        UPD.state = (UPD.remote && cmpVer(UPD.remote, APP_VER) > 0) ? 'update' : 'latest';
+        UPD.readyTag = '';
+        updPaintCheck();
+        toast('安装包已不在, 请重新下载');
+        log('下载目录里的安装包已经不在了, 恢复为可重新下载', 'w');
+        return;
+      }
+    }catch(e0){}
+    doInstallReady(); return;
+  }
   if(st === 'update' && UPD.remote){ doUpdate(UPD.remote); return; }
   checkUpdate();
 }
@@ -5768,9 +5780,35 @@ function updSyncCached(){
   /* 原生真在下就不动它; 原生不在跑而页面还当自己在下,
      那是页面落后了, 下面的缓存校对会把它改正过来. */
   if(p && p.running) return;
+  /* 原生已回 idle 而页面还卡 downloading(轮询停了/页面刚重载): 校正, 与 tick idle 分支同口径.
+     防抖: 下载启动 3 秒内的 idle 是 UpdateTask 初始化过渡, 不校正. */
+  if(UPD.state === 'downloading' && p && p.phase === 'idle' && p.startedAt && Date.now() - p.startedAt > 3000){
+    var c2 = null;
+    try{ c2 = JSON.parse(window.HzNative.updateCached() || 'null'); }catch(e9){ c2 = null; }
+    if(c2 && c2.ok && c2.file !== false && c2.tag && cmpVer(c2.tag, APP_VER) > 0){
+      UPD.state = 'ready'; UPD.readyTag = String(c2.tag);
+      if(!UPD.remote || cmpVer(UPD.remote, c2.tag) !== 0) UPD.remote = c2.tag;
+      updPaintCheck(); updPaintProg();
+      return;
+    }else{
+      UPD.state = (UPD.remote && cmpVer(UPD.remote, APP_VER) > 0) ? 'update' : 'latest';
+      UPD.readyTag = '';
+      updPaintCheck(); updPaintProg();
+      return;
+    }
+  }
   var c = null;
   try{ c = JSON.parse(window.HzNative.updateCached() || 'null'); }catch(e){ c = null; }
-  if(!c || !c.ok) return;
+  if(!c || !c.ok){
+    /* 记账整个没了(缓存被清/被 RescanTask 清): ready 也是幽灵, 一并清掉 */
+    if(UPD.state === 'ready'){
+      UPD.state = (UPD.remote && cmpVer(UPD.remote, APP_VER) > 0) ? 'update' : 'latest';
+      UPD.readyTag = '';
+      updPaintCheck();
+      log('下载缓存已不在, 恢复为可重新下载', 'w');
+    }
+    return;
+  }
   var t = String(c.tag || '');
   if(!t || cmpVer(t, APP_VER) <= 0) return;          /* 旧包/未知版本, 不认 */
   /* 记账说下好了, 但包文件没了(被安装器消费/用户在下载目录删了副本并连带清了缓存):
@@ -6037,14 +6075,14 @@ function updPollStart(){
           UPD.msg = p.err || '下载失败';
           updPaintCheck();
         }
-      }else if(p.phase === 'idle' && UPD.state === 'downloading'){
+      }else if(p.phase === 'idle' && UPD.state === 'downloading' && (Number(p.got) || 0) > 0){
         /* 下载完成被安装器消费/被清掉: 原生已回 idle, 页面不能永远卡"下载中 100%".
-           有记账(带新包)转 ready, 没有就回 update/latest, 与 updSyncCached 同口径. */
-        var c0 = null;
-        try{ c0 = JSON.parse(window.HzNative.updateCached() || 'null'); }catch(e5){ c0 = null; }
-        if(c0 && c0.ok && c0.file !== false && c0.tag && cmpVer(c0.tag, APP_VER) > 0){
-          UPD.state = 'ready'; UPD.readyTag = String(c0.tag);
-          if(!UPD.remote || cmpVer(UPD.remote, c0.tag) !== 0) UPD.remote = c0.tag;
+           got>0 才认: 下载刚启动的瞬间(Reset 前的 idle)是正常过渡, 不能误判成完成. */
+        var c1 = null;
+        try{ c1 = JSON.parse(window.HzNative.updateCached() || 'null'); }catch(e5){ c1 = null; }
+        if(c1 && c1.ok && c1.file !== false && c1.tag && cmpVer(c1.tag, APP_VER) > 0){
+          UPD.state = 'ready'; UPD.readyTag = String(c1.tag);
+          if(!UPD.remote || cmpVer(UPD.remote, c1.tag) !== 0) UPD.remote = c1.tag;
         }else{
           UPD.state = (UPD.remote && cmpVer(UPD.remote, APP_VER) > 0) ? 'update' : 'latest';
           UPD.readyTag = '';
@@ -6053,15 +6091,60 @@ function updPollStart(){
       }
     }
     updPaintProg();
-    if(p && !p.running && (p.phase === 'install' || p.phase === 'fail' || p.phase === 'idle')){
+    if(p && !p.running && (p.phase === 'install' || p.phase === 'fail'
+        || (p.phase === 'idle' && (Number(p.got) || 0) > 0))){
       updPollStop();
     }
   }, 350);
 }
 
+/* 回到前台/页面重新可见时, 定时器可能已被系统暂停: 立刻按原生快照校一次态.
+   否则页面会僵在"下载中 X%"而原生早已完成(用户切的不是应用, 是后台). */
+function updResync(){
+  if(!HASNATIVE || !window.HzNative.updateProgress) return;
+  var p = updSnap();
+  if(!p) return;
+  if(p.running){
+    if(UPD.state !== 'downloading'){ UPD.state = 'downloading'; updPaintCheck(); }
+    updPollStart();
+    return;
+  }
+  if(p.phase === 'install'){
+    var tg = String(p.tag || UPD.dlTag || '');
+    if(tg && UPD.state !== 'ready'){
+      UPD.state = 'ready'; UPD.readyTag = tg;
+      if(!UPD.remote || cmpVer(UPD.remote, tg) !== 0) UPD.remote = tg;
+      updPaintCheck();
+    }
+    updPaintProg();
+    return;
+  }
+  if(UPD.state === 'downloading'){
+    updSyncCached();
+  }
+  updPaintProg();
+}
+
 function updPollStop(){
   if(UPD_POLL.t){ clearInterval(UPD_POLL.t); UPD_POLL.t = 0; }
 }
+
+/* 切回前台校态: 只在页面确实可见时跑一次, 不引入额外定时器. */
+(function(){
+  function hook(){
+    try{
+      document.addEventListener('visibilitychange', function(){
+        if(!document.hidden){ try{ updResync(); }catch(e){} }
+      });
+      window.addEventListener('focus', function(){ try{ updResync(); }catch(e){} });
+      window.addEventListener('pageshow', function(){ try{ updResync(); }catch(e){} });
+      /* 首屏也校一次(异步, 避开 boot 期间的重复渲染) */
+      setTimeout(function(){ try{ updResync(); }catch(e){} }, 1200);
+    }catch(e){}
+  }
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', hook);
+  else hook();
+})();
 
 /* 需求5b: 跳系统下载目录. 原生三级策略, 返回 ok 或失败原因. */
 function openDownloadDir(){
