@@ -136,6 +136,7 @@ html .hd::before{
 }
 .hd .hd-r, .hd .hd-t, .hd .hd-s{ position:relative; z-index:1; }
 html .nav{
+  background:var(--hdr-bg);
   background:linear-gradient(180deg, var(--hdr-bg) 0%, color-mix(in srgb, var(--hdr-bg) 82%, var(--accent)) 100%);
   border-top:2px solid var(--acc-soft);
   box-shadow:0 -4px 16px rgba(8,12,20,.12);
@@ -143,10 +144,13 @@ html .nav{
 .hd-t{ font-size:17px; font-weight:800; letter-spacing:.3px; }
 /* 按钮体系: 主题渐变主按钮, soft 次按钮, 语义危险 */
 html .btn-p{ background:var(--hdr-grad)!important; border:none!important; color:#fff!important;
+  box-shadow:0 3px 10px rgba(56,139,253,.38);
   box-shadow:0 3px 10px color-mix(in srgb, var(--accent) 38%, transparent); }
 html .btn-b{ background:var(--acc-soft)!important; border:none!important; color:var(--accent)!important; }
-html .btn-r{ background:color-mix(in srgb, var(--danger) 14%, transparent)!important;
-  border:none!important; color:var(--danger)!important; }
+/* 红按钮必须有实底: 旧值是 14% 透明红, 浅色底上几乎看不见,
+   看起来就是“透明按钮红字”。现在实底 --danger + 白字. */
+html .btn-r{ background:var(--danger)!important;
+  border:1px solid var(--danger)!important; color:#ffffff!important; }
 button{ border-radius:11px; font-weight:600;
   transition:transform calc(.16s*var(--dur)) ease, box-shadow calc(.16s*var(--dur)) ease; }
 /* 触控反馈 */
@@ -161,11 +165,13 @@ button{ border-radius:11px; font-weight:600;
 [data-fx="full"] .nav-i:active .ic{ transform:scale(.82); }
 html .nav-i .ic{ transition:transform calc(.18s*var(--dur)) cubic-bezier(.34,1.56,.64,1); }
 /* 页面转场 */
-@keyframes hz-push{ from{opacity:0;transform:translateX(26px)} to{opacity:1;transform:none} }
-@keyframes hz-pop{ from{opacity:0;transform:translateX(-26px)} to{opacity:1;transform:none} }
+/* 入场动画不动 opacity: 只要 from 的 opacity<1, 每次切页都会整页变淡再变实,
+   用户看到的就是"闪一下". 只保留位移, 亮度全程恒定. */
+@keyframes hz-push{ from{transform:translateX(26px)} to{transform:none} }
+@keyframes hz-pop{ from{transform:translateX(-26px)} to{transform:none} }
 .page-enter .body{ animation:hz-push calc(.22s*var(--dur)) cubic-bezier(.2,.8,.2,1); }
 .page-leave .body{ animation:hz-pop calc(.22s*var(--dur)) cubic-bezier(.2,.8,.2,1); }
-@keyframes hz-stagger{ from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:none} }
+@keyframes hz-stagger{ from{transform:translateY(14px)} to{transform:none} }
 [data-fx="full"] .page-enter .card{ animation:hz-stagger calc(.3s*var(--dur)) cubic-bezier(.2,.8,.2,1) both; }
 [data-fx="full"] .page-enter .card:nth-child(2){ animation-delay:45ms }
 [data-fx="full"] .page-enter .card:nth-child(3){ animation-delay:90ms }
@@ -189,15 +195,28 @@ html .nav-i.on{ color:var(--accent); font-weight:600; }
 /* toast 胶囊 */
 #toast{ position:fixed; left:50%; bottom:calc(64px + env(safe-area-inset-bottom));
   transform:translateX(-50%) translateY(20px);
-  background:color-mix(in srgb, var(--fg) 92%, transparent); color:var(--bg);
-  font-size:12.5px; font-weight:600; padding:9px 18px; border-radius:99px;
-  box-shadow:0 6px 20px rgba(0,0,0,.35); opacity:0; z-index:9500;
+  /* 写死深底白字, 不靠 color-mix, 也不靠 --bg:
+     WebView 110 不认 color-mix 只丢那一条, 而 color:var(--bg) 是纯 var 一定生效,
+     浅色主题下 --bg 就是白色 -> 浅底白字。两条不确定声明全删。 */
+  /* !important 兜死: 页面里曾并存一套老的 .toast 类规则(浅底 + var(--fg)),
+     它后出现且属性更全, 把这里的写死色整条盖掉, 实渲染成浅底白字看不清.
+     老规则已删, 这里再全部加 !important, 不再依赖优先级推断. */
+  background:#0f1216 !important; color:#ffffff !important;
+  border:1px solid rgba(255,255,255,.34) !important;
+  font-size:14px !important; font-weight:600 !important;
+  padding:11px 20px !important; border-radius:99px !important;
+  bottom:calc(64px + env(safe-area-inset-bottom)) !important;
+  box-shadow:0 10px 30px rgba(0,0,0,.62) !important;
+  opacity:0; z-index:9500 !important;
   transition:opacity .2s ease, transform .2s cubic-bezier(.34,1.56,.64,1);
-  pointer-events:none; max-width:82%; text-align:center; }
+  pointer-events:none; max-width:82%; text-align:center;
+  letter-spacing:.2px; }
 #toast.on{ opacity:1; transform:translateX(-50%) translateY(0); }
 /* 对话框缩放进场 */
 .dlg{ animation:dlg-in calc(.2s*var(--dur)) cubic-bezier(.34,1.56,.64,1); }
-@keyframes dlg-in{ from{opacity:0;transform:scale(.92) translateY(10px)} to{opacity:1;transform:none} }
+/* 不动 opacity: 从 0 开始每次弹窗都貌似“闪一下才看清”,
+   与页面转场同一个病根. 只保留缩放与位移. */
+@keyframes dlg-in{ from{transform:scale(.94) translateY(8px)} to{transform:none} }
 /* 空状态 */
 .hz-empty{ text-align:center; padding:26px 12px; color:var(--fg-muted); }
 .hz-empty .e-ic{ font-size:30px; opacity:.5; display:block; margin-bottom:8px; }
@@ -271,13 +290,17 @@ body{
 .sub.warn{color:#b45309;background:#fffbeb;border-left:3px solid #f59e0b;padding:6px 8px;border-radius:4px}
 .row{display:flex;gap:7px;margin-bottom:7px}
 .row:last-child{margin-bottom:0}
-/* 洗衣订单卡的动作按钮: 三个横向并排, 每个都放到"取消订单"那档大小;
-   主操作"开启洗衣机"双倍高度, 一眼就是主按钮. 多按钮时自动换行不挤. */
-.uact{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:12px;margin-bottom:18px}
-.uact button{flex:1 1 30%;min-width:0;height:46px;font-size:15px;font-weight:600;
-  border-radius:8px;padding:0 8px;white-space:nowrap}
-.uact button.uact-big{flex:1 1 30%;height:92px;font-size:19px;font-weight:800;
-  letter-spacing:1px;border-width:2px}
+/* 洗衣订单卡的动作按钮: 固定三列网格, 全部按钮强制等宽等高(46px).
+   旧实现 flex:1 1 30% + 主操作 height:92px, 结果是按钮个数一变(去支付/继续洗衣/
+   提前结束按订单状态按需插入), flex 按内容长度重新分配宽度, 主操作还高出半截,
+   同一张卡里三个按钮大小不一. 改 grid 后列宽只由容器决定, 与按钮数量和文案长度无关. */
+.uact{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;
+  align-items:stretch;margin-top:12px;margin-bottom:18px}
+.uact button{width:100%;min-width:0;height:46px;font-size:15px;font-weight:600;
+  border-radius:8px;padding:0 8px;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;box-sizing:border-box}
+.uact button.uact-big{height:46px;font-size:16px;font-weight:800;
+  letter-spacing:0;border-width:2px}
 
 .uact-cancel button{height:46px;font-size:15px;font-weight:600;border-radius:8px}
 
@@ -293,7 +316,7 @@ button:disabled{opacity:.4;cursor:default}
 .btn-p{background:rgba(63,185,80,.16);border-color:var(--success);color:var(--success);font-weight:700}
 .btn-p:disabled{opacity:.45}
 .btn-b{background:var(--accent-bg);border-color:rgba(240,246,252,.1);color:var(--accent-fg)}
-.btn-r{background:var(--bg-inset);border-color:var(--danger);color:var(--danger)}
+.btn-r{background:var(--danger);border-color:var(--danger);color:#ffffff}
 .btn-d{background:var(--danger-bg);border-color:rgba(240,246,252,.1);color:#fff}
 .btn-w{flex:none;min-width:86px}
 .btn-f{flex:1}
@@ -329,21 +352,30 @@ button:disabled{opacity:.4;cursor:default}
 .log .t{color:var(--fg-subtle)}
 .empty{padding:20px 0;text-align:center;color:var(--fg-subtle);font-size:12.5px}
 
-.mask{position:fixed;inset:0;background:rgba(1,4,9,.72);display:none;align-items:center;
+.paysheet{display:flex;flex-direction:column;gap:8px;max-height:56vh;overflow-y:auto;padding-right:2px}
+.paysheet-row{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:12px;
+  background:var(--bg-inset);border:1px solid var(--border)}
+.paysheet-row.off{opacity:.45}
+.ps-main{flex:1;min-width:0}
+.ps-name{font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px}
+.ps-sub{font-size:12px;color:var(--fg-muted);margin-top:2px;line-height:1.35}
+.ps-go{font-size:20px;color:var(--fg-subtle);flex:0 0 auto}
+.ps-tag{font-size:10px;padding:1px 5px;border-radius:4px;background:var(--acc-soft);color:var(--accent);font-weight:400}
+.ps-tag-def{background:var(--acc-soft);color:var(--accent)}
+.mask{position:fixed;inset:0;background:rgba(0,0,0,.82);display:none;align-items:center;
   justify-content:center;z-index:200;padding:22px}
 .mask.on{display:flex}
-.dlg{width:100%;max-width:420px;background:var(--bg-subtle);border:1px solid var(--border);
-  border-radius:12px;padding:16px;box-shadow:0 16px 32px rgba(1,4,9,.85);max-height:82vh;overflow-y:auto}
-.dlg h3{margin:0 0 8px;font-size:15px;font-weight:600}
-.dlg .dbody{font-size:13px;color:var(--fg-muted);line-height:1.65}
-.dlg .dact{display:flex;gap:8px;margin-top:14px}
+/* 用户两次反馈"弹窗不明显": 卡片原来用 --bg-subtle(浅色主题 #f6f8fa),
+   正文用 --fg-muted(#59636e), 压在浅色页面背景上边界糊成一片.
+   改成卡片用 --bg(浅色纯白/深色 #0d1117)拉开与遮罩的层次, 正文直接用主字色. */
+.dlg{width:100%;max-width:420px;background:var(--bg);border:1px solid var(--border);
+  border-radius:12px;padding:18px;max-height:82vh;overflow-y:auto;
+  box-shadow:0 24px 64px rgba(1,4,9,.9), 0 0 0 1px rgba(0,0,0,.28);
+  color:var(--fg)}
+.dlg h3{margin:0 0 10px;font-size:17px;font-weight:700;letter-spacing:.2px}
+.dlg .dbody{font-size:14px;color:var(--fg);line-height:1.7}
+.dlg .dact{display:flex;gap:8px;margin-top:14px;position:sticky;bottom:-18px;background:var(--bg);padding:10px 0 6px;z-index:1}
 .dlg .dact button{flex:1}
-
-.toast{position:fixed;left:50%;bottom:78px;transform:translateX(-50%) translateY(12px);
-  background:var(--bg-inset);color:var(--fg);padding:8px 16px;border-radius:6px;font-size:13px;
-  opacity:0;pointer-events:none;transition:.18s;border:1px solid var(--border);max-width:80vw;
-  text-align:center;z-index:300}
-.toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 
 .themes{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .th{border:1px solid var(--border);border-radius:6px;padding:9px;cursor:pointer;background:var(--bg-inset)}
@@ -477,6 +509,7 @@ body{
 .bigscan{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
   min-height:92px;margin-bottom:6px;border:0;border-radius:11px;cursor:pointer;
   background:var(--hdr-grad);color:#fff;
+  box-shadow:0 3px 10px rgba(56,139,253,.38);
   box-shadow:0 3px 10px color-mix(in srgb, var(--accent) 38%, transparent)}
 .bigscan:active{opacity:.86;transform:translateY(1px)}
 .bigscan-i{font-size:30px;line-height:1;font-weight:400}
@@ -538,14 +571,15 @@ body{
 /* ====== 折叠卡/子分组/分段/媒体网格/档案 chips (P2b 丢失补回) ====== */
 .card.foldcard{ padding:0; overflow:hidden; }
 .card.foldcard>h2{ cursor:pointer; user-select:none; margin:0; padding:18px 18px 15px; font-size:16px; }
-.card.foldcard>h2::after{ content:'▾'; float:right; transition:transform .2s; font-size:14px; color:var(--fg-muted); }
+.card.foldcard>h2::after{ content:'▾'; float:right; transition:transform .2s; font-size:2em; line-height:1; color:var(--fg-muted); }
 .card.foldcard.closed>h2::after{ transform:rotate(-90deg); }
 .card.foldcard>.fold-b{ overflow:hidden; transition:max-height .25s ease,opacity .2s ease; padding:0 13px 12px; }
 [data-fx='off'] .card.foldcard>.fold-b{ transition:none; }
 .card.foldcard.closed>.fold-b.hidef{ max-height:0!important; opacity:0; padding-top:0; padding-bottom:0; }
+
 .subfold{ border:1px solid var(--border); border-radius:10px; margin-bottom:8px; overflow:hidden; }
 .subfold>.sf-h{ display:flex; align-items:center; padding:12px 14px; font-size:13.5px; font-weight:600; cursor:pointer; user-select:none; }
-.subfold>.sf-h::after{ content:'▾'; margin-left:auto; font-size:10px; color:var(--fg-muted); transition:transform .2s; }
+.subfold>.sf-h::after{ content:'▾'; margin-left:auto; font-size:1em; line-height:1; color:var(--fg-muted); transition:transform .2s; }
 .subfold.closed>.sf-h::after{ transform:rotate(-90deg); }
 .subfold>.sf-b{ padding:2px 11px 9px; overflow:hidden; transition:max-height .25s ease,opacity .2s ease; }
 .subfold.closed>.sf-b{ max-height:0!important; opacity:0; padding-top:0; padding-bottom:0; }
@@ -623,6 +657,13 @@ function log(msg, cls){
   if(LOG.length > LOG_CAP) LOG.shift();
   logPersistSave();
   if(CUR === 'log') paint();
+  else if(CUR === 'settings'){
+    /* 设置页卡片上的"日志条数"跟着走, 但不动整页: 整页 paint 会把滚动位置和折叠态全重置 */
+    var lc = document.getElementById('setLogCount');
+    if(lc){
+      lc.textContent = LOG.length + ' 条 (持久化' + (LOG_PERSIST ? '开' : '关') + ')';
+    }
+  }
 }
 function toast(msg){
   var t = $('toast');
@@ -669,6 +710,47 @@ function confirmBox(title, body, okLabel, fn){
 var HASNATIVE = !!(window.HzNative && window.HzNative.isNative && window.HzNative.isNative());
 var cbSeq = 0;
 window.__hzCb = window.__hzCb || {};
+
+/* 常驻收银台事件通道.
+   Java 侧的 cashierEvent(json) 打的是 window.__hzCashier.event(json).
+   以前这只在 uOpenCashier() 里才定义, 主 WebView 的渠道弹层没走过那条路,
+   于是微信 / 银联的回包全被 evaluateJavascript 那层 try 吞掉, 用户什么都看不到.
+   这里在页面启动时就挂一份常驻的, 谁发来的都处理. */
+window.__hzCashier = window.__hzCashier || {};
+if(!window.__hzCashier.event){
+  window.__hzCashier.event = function(ev){
+    try{
+      var st = String((ev && ev.stage) || '');
+      var chan = String((ev && ev.channel) || '');
+      var sch = String((ev && ev.scheme) || '');
+      log('原生支付事件: ' + String(JSON.stringify(ev || {})).slice(0, 200), 'w');
+      if(st === 'fail'){
+        if(chan === 'wechatPay'){
+          alertBox('微信支付没成功', uWxErrText(ev.memo));
+        } else {
+          alertBox('这个方式没付成', esc(String(ev.memo || ev.err || ('渠道 ' + chan + ' 返回失败'))));
+        }
+        try{ if(CUR === 'laundry' || CUR === 'uorder') paint(); }catch(eP){}
+        return;
+      }
+      if(st === 'cancel'){
+        toast(chan === 'wechatPay' ? '你在微信里取消了这笔付款' : '已取消这笔付款');
+        return;
+      }
+      if(st === 'paid'){
+        toast('收到支付完成, 正在刷新订单');
+        var oid0 = String((window.__hzCashier && window.__hzCashier.orderId) || U.orderId || '');
+        try{ uCashierAware(oid0); }catch(eC){}
+        try{ if(U.orderId) uPollLastPay(U.orderId, chan || 'wechatPay', 'ev'); }catch(eQ){}
+        return;
+      }
+      if(st === 'external'){
+        toast('已交给' + ((chan === 'wechatPay' || sch === 'wechat') ? '微信' : '对方应用') + '完成付款');
+        return;
+      }
+    }catch(e){ log('原生支付事件处理异常: ' + e.message, 'w'); }
+  };
+}
 
 /* ============================================================
    Web 运行层: iOS / Android 浏览器 / PWA 共用
@@ -1411,18 +1493,30 @@ function hzTransitionHost(host, kind){
   try{ hzTransition(host && host.classList && host.classList.contains('body') ? host : (host && host.closest ? host.closest('.body') : null), kind); }catch(e){}
 }
 var HZ_TRANS_AT = 0;
+var HZ_BOOT_AT = Date.now();
+/* 只挡 boot 自己那一帧. boot() 里就调了 enterApp('water'), 那一帧是页面第一次渲染,
+   不该播入场动画(会与原生开屏层淡出撞在一起, 看起来就是"开机闪一下")。
+   之后每一次真实切页都播, 包括用户开机后第一次点取水/洗衣。
+
+   曾经这里还有个 BOOT_ANIM_SKIP 用来"跳过第一次真实切页", 已经删掉:
+   它的代价是用户开机后第一次点取水/洗衣完全没有动画, 而且等多久都不会恢复。 */
+var BOOT_FIRST_PAINT = true;
 function hzTransition(el, kind){
-  /* 1s 冷却: boot 双 paint 不再重播入场动画 */
+  /* 没有 boot 冷却窗了. 首帧由 BOOT_FIRST_PAINT 精确挡, 第一次真实切页由 BOOT_ANIM_SKIP 精确挡,
+     两者都在 paint 里按页键判断, 比"启动后 2 秒内 1 秒冷却"精确得多.
+     老冷却的副作用: 启动后一两秒内连着切页, 第二次起动画整段被吞(用户实测"开启软件时动画全没了"). */
   if(!el) return;
   var fx = ACC.fx && ACC.fx.fx ? ACC.fx.fx : 'full';
-  if(fx === 'off' || fx === 'lite') return;
-  var now = Date.now();
-  if(now - HZ_TRANS_AT < 1000) return;
-  HZ_TRANS_AT = now;
+  if(fx === 'off' || fx === 'lite'){ log('转场: fx=' + fx + ' 不播', 's'); return; }
+  HZ_TRANS_AT = Date.now();
   el.classList.remove('page-enter','page-leave');
   void el.offsetWidth;
   el.classList.add(kind === 'leave' ? 'page-leave' : 'page-enter');
-  setTimeout(function(){ el.classList.remove('page-enter','page-leave'); }, 320);
+  log('转场: ' + kind + ' 已挂 class, 启动后 ' + (Date.now() - HZ_BOOT_AT) + 'ms', 's');
+  /* 动画链最长 = hz-stagger 300ms + nth-child(6) delay 225ms = 525ms.
+     老值 320ms 会把动画腰斩在 opacity 约 0.6, 再瞬间跳到 1 -- 这就是用户看到的第二下闪。
+     改成 560ms 覆盖完整链, 留 35ms 余量. */
+  setTimeout(function(){ el.classList.remove('page-enter','page-leave'); }, 560);
 }
 function popPage(){
   try{ bgAudioDuck(false); }catch(e){} if(PAGE_STACK.length){ PAGE_STACK.pop(); paint(); } }
@@ -1444,6 +1538,12 @@ function paint(){
   $('hdSub').textContent = page ? (page.sub || '') : (app.sub || '');
   $('hdBack').className = 'hd-back' + (PAGE_STACK.length ? '' : ' hide');
   var host = $('body');
+  /* 重建 DOM 前先摘掉入场/退场 class.
+     洗衣页进来后有自动定位链(doLocateQuiet -> fmLoad), 一次进入会 paint 两三次;
+     若不清 class, 第二次重建出来的卡片会立刻命中 `[data-fx="full"] .page-enter .card`,
+     把卡片阶梯动画原地再播一遍 -- 用户看到的就是"只有洗衣会加载两次 UI 动画".
+     清掉之后要不要播动画统一由下面的页键分支决定. */
+  try{ host.classList.remove('page-enter','page-leave'); }catch(eCl){}
   host.innerHTML = '';
   try{
     if(page) page.render(host);
@@ -1453,6 +1553,9 @@ function paint(){
       + esc(e && e.message) + '</div></div>';
   }
   host.scrollTop = keepTop;
+  /* 第 212 轮: 折叠接线统一放这里, 页面各自 render 不必记得调 foldWire
+     (取水页的优惠折扣大卡此前就漏绑了). onclick 赋值幂等, 重复调用无害. */
+  foldWire(host);
   renderNav();
   if(HASNATIVE && window.HzNative.setDepth){
     try{ window.HzNative.setDepth(PAGE_STACK.length); }catch(e){}
@@ -1460,7 +1563,15 @@ function paint(){
   /* 只在真实切页(页键变化)时播入场动画; 同页数据刷新(余额/订单回调)不播 -> 不再闪烁 */
   if(key !== LAST_ANIM_KEY){
     LAST_ANIM_KEY = key;
-    try{ hzTransitionHost(document.querySelector('.body'), 'enter'); }catch(e){}
+    if(BOOT_FIRST_PAINT){
+      /* boot 自己的首帧: 只登记页键, 不播动画(会与原生开屏层淡出撞在一起).
+         之后每一次真实切页都往下走播入场动画。 */
+      BOOT_FIRST_PAINT = false;
+      log('动画: 首帧 ' + key + ' 只登记页键, 保留 skip', 's');
+    } else{
+      log('动画: 切页 ' + key + ' 播入场动画', 's');
+      try{ hzTransitionHost(document.querySelector('.body'), 'enter'); }catch(e){}
+    }
   }
 }
 function renderNav(){
@@ -2615,6 +2726,13 @@ async function wSignIn(){
    2) "我的水卡"页 = POST user/encrypt/phone 拿加密手机号 -> 跳
       https://apwork.cn/water-qie/myArea.html?<加密手机号> (页内按水区充值);
    3) 之前拼的 userapi.qiekj.com/h5/recharge 是臆造端点(404), 已删. */
+function openRecharge(url){
+  if(!url) return;
+  if(HASNATIVE && window.HzNative.openInternal){
+    try{ window.HzNative.openInternal(url); return; }catch(eI){}
+  }
+  openUrl(url);
+}
 function wMyAreaUrl(cb){
   if(!S.token){ cb(null); return; }
   apiForm('user/encrypt/phone', {}).then(function(e){
@@ -2639,61 +2757,36 @@ function wRechargeUrls(){
 }
 function wRecharge(){
   if(!S.token){ alertBox('先登录', '充值要带 token, 先登录胖乖账号.'); return; }
-  var list = wRechargeUrls();
-  var cur = list.length ? list[0] : null;
-  /* 官方"我的水卡"页: 页内按水区显示余额与充值按钮, 想给哪区充点哪区. */
-  wMyAreaUrl(function(myArea){ /* 异步拿到后由下方按钮直接用 */ });
-  var body = '';
+  /* 用户裁决: 点充值直接进官方充值页(应用内 WebView), 不要弹窗说教.
+     入口优先级: 当前扣费水卡自带 rechargeUrl > 设备 redirectUrl > 官方"我的水卡"(myArea). */
+  var direct = null;
   if(W.share && W.share.length){
-    body += kv('水卡数量', W.share.length + ' 张');
-    body += W.share.map(function(c){
-      return kv(esc(c.areaName||('区域 '+c.areaId)),
-        Number(c.totalBalance||0).toFixed(2) + ' 元'
-        + (W.curArea !== null && W.curArea !== undefined
-           && String(c.areaId) === String(W.curArea) ? ' (当前扣费)' : ''));
-    }).join('');
-  }
-  if(W.waterInit) body += kv('最少余额', (W.waterInit.balanceLimit||0) + ' 元');
-  body += '<div class="sub" style="margin-top:7px">';
-  if(cur){
-    body += '支付只能在浏览器里走官方页面(微信内是公众号授权, 支付宝内是另一套).'
-      + '<br>本应用不接管支付, 也不会代收钱.';
-  }else{
-    body += '这台机器没有下发任何充值地址, 说明商家没开通在线充值.'
-      + '<br>只能去实体机或商家处充值, 充完回本页点刷新.';
-  }
-  body += '</div>';
-  modal({ title:'充值', body:body, actions: (function(){
-    var acts = [];
-    /* 一张水卡一个按钮: 充值跟卡走(卡自带 rechargeUrl), 天然选水区. */
-    if(W.share && W.share.length){
-      W.share.forEach(function(c){
-        if(c.rechargeUrl){
-          acts.push({ label: '给 ' + (c.areaName || c.areaId) + ' 充值',
-            cls: (String(c.areaId) === String(W.curArea) ? 'btn-b' : ''),
-            fn: function(){ closeModal(); log('打开充值(水卡自带页): ' + String(c.rechargeUrl).slice(0,90)); openUrl(c.rechargeUrl); } });
-        }
-      });
+    for(var i=0;i<W.share.length;i++){
+      var c = W.share[i];
+      if(c.rechargeUrl && W.curArea !== null && W.curArea !== undefined
+         && String(c.areaId) === String(W.curArea)){ direct = c.rechargeUrl; break; }
     }
-    list.forEach(function(x, i){
-      if(W.share && W.share.length && W.share.some(function(c){ return c.rechargeUrl === x.url; })) return;
-      acts.push({ label: '去充值 (' + x.src + ')', cls: '',
-        fn: function(){ closeModal(); log('打开充值: ' + x.url.slice(0,90)); openUrl(x.url); } });
+    if(!direct){
+      for(var j=0;j<W.share.length;j++){
+        if(W.share[j].rechargeUrl){ direct = W.share[j].rechargeUrl; break; }
+      }
+    }
+  }
+  if(!direct && S.dev){
+    direct = S.dev.redirectUrl || S.dev.redirectUrl2 || S.dev.rechargeUrl || null;
+  }
+  if(!direct){
+    /* 没有任何下发地址: 只在这一个分支提示(商家没开在线充值, 这是必要信息). */
+    wMyAreaUrl(function(u){
+      if(u){ openRecharge(u); return; }
+      alertBox('这台机器没有在线充值',
+        '商家没有下发充值地址, 服务商入口也没拿到.'
+        + '<br>只能去实体机或商家处充值, 充完回来点刷新.');
     });
-    /* 官方"我的水卡"页: 按水区充值(不用管链接, 页里自己选) */
-    acts.push({ label: '我的水卡 (按水区充值)', cls: 'btn-b',
-      fn: function(){
-        closeModal();
-        wMyAreaUrl(function(u){
-          if(u){ openUrl(u); }
-          else{ alertBox('入口没拿到', 'user/encrypt/phone 没返回加密手机号, 登录态可能过期, 重新登录再试.'); }
-        });
-      } });
-    acts.push({ label:'刷新余额', fn:function(){ closeModal(); wLoadBalance(); } });
-    acts.push({ label:'关闭' });
-    return acts;
-  })() });
-  /* 充值后自动盯余额: 打开收银台后每 30s 查一次, 最多 5 次, 变了就报. */
+    return;
+  }
+  openRecharge(direct);
+  /* 充值后自动盯余额: 每 30s 查一次, 最多 5 次, 变了就报. */
   (function(){
     var n = 0;
     var t = setInterval(function(){
@@ -2923,6 +3016,27 @@ async function uScan(){
     paint();
 }
 
+/* 确认下单快页: 扫码直达. 摘要 + 主操作, 复杂选项回主页调. */
+function pageUOrderQuick(host){
+  var m = uCurModel();
+  var devTxt = (U.result.deviceNo || U.result.deviceId || '-');
+  var h = '';
+  h += '<div class="card"><h2>机器就绪</h2>';
+  h += kv('机器', devTxt);
+  h += kv('店铺', U.result.storeName || U_PROG.storeName || '-');
+  h += kv('模式', m ? (m.workModelName + ' / ' + m.time + ' 分钟') : '(价格表读取中)');
+  if(m) h += kv('价格', uYuan(uPriceOf(m)) + ' 元起');
+  h += '<div class="sub">洗涤模式/洗衣液/水温等完整选项在洗衣主页; 这里确认后直接下单.</div>';
+  h += '<div class="row"><button class="btn-p" id="uQuickGo">去下单</button>'
+    + '<button class="btn-b" id="uQuickBack">返回主页调选项</button></div>';
+  h += '</div>';
+  host.innerHTML = h;
+  var b1 = $('uQuickGo');
+  if(b1) b1.onclick = function(){ popPage(); setTimeout(function(){ try{ uOrderConfirm(); }catch(e){ alertBox('下单异常', esc(e.message)); } }, 60); };
+  var b2 = $('uQuickBack');
+  if(b2) b2.onclick = function(){ popPage(); };
+}
+
 /* 直接用 deviceId 读机器 + 价格表 (program/info).
    返回 true 表示读到了, 调用方不要再报错. */
 async function uProbeByDeviceId(did){
@@ -2950,6 +3064,9 @@ async function uProbeByDeviceId(did){
     uLoadOrders();
     await uLoadProgram();
     paint();
+    /* 用户反馈: 扫码后要自己返回主页再往下划才能找到下单入口.
+       现在扫码/读取成功直接进"确认下单"页, 和正版 U净的体验对齐. */
+    try{ pushPage({ title:'订单', sub:'U净 ' + (U.result.storeName || ''), render:pageUOrder }); }catch(eP){}
     return true;
   }catch(e){
     alertBox('读机器异常', esc(e.message));
@@ -3204,7 +3321,7 @@ function uPickModel(wmId){
   var m = uModelOf(wmId);
   if(!m){ toast('没有这个模式'); return; }
   U_SEL.mode = m.workModelId;
-  uSyncSelToModel();
+  U_KEEP_DET = null;   uSyncSelToModel();
   log('模式: ' + m.workModelName + ' ' + uYuan(uBaseFen(m)) + ' 元 / ' + m.time + ' 分钟'
     + ' 合计 ' + uYuan(uTotalFen()) + ' 元', 's');
   paint();
@@ -3264,6 +3381,23 @@ function uReadSel(){
   if($('uDet'))  U_SEL.det  = Number($('uDet').value) || 0;
   if($('uDis'))  U_SEL.dis  = Number($('uDis').value) || 0;
   U_SEL.temp = U_SEL.ap && U_SEL.ap.washTemperatureId ? Number(U_SEL.ap.washTemperatureId) : 0;
+}
+/* 用户报障: 选完"不添加洗衣液"再选温度, 洗衣液又回到默认. 给"用户意愿"加保持层:
+   液体 onchange 时记录, 附加项(温度等)重绘后回填; 切模式/换机器才清空. */
+var U_KEEP_DET = null;
+function uKeepDet(){ U_KEEP_DET = { det: U_SEL.det, dis: U_SEL.dis }; }
+function uApplyKeep(){
+  if(!U_KEEP_DET) return;
+  var dp = uLiquidPick(uCurModel(), 'wp_detergentGearId');
+  var list = (dp && dp.list) || [];
+  for(var i=0;i<list.length;i++){
+    if(String(list[i].id) === String(U_KEEP_DET.det)){ U_SEL.det = U_KEEP_DET.det; break; }
+  }
+  var dp2 = uLiquidPick(uCurModel(), 'wp_disinfectantGearId');
+  var list2 = (dp2 && dp2.list) || [];
+  for(var j=0;j<list2.length;j++){
+    if(String(list2[j].id) === String(U_KEEP_DET.dis)){ U_SEL.dis = U_KEEP_DET.dis; break; }
+  }
 }
 
 /* 正版 noticeChooseFeature 的等价校验, 通过返回 true */
@@ -3388,7 +3522,7 @@ async function runOrder(){
                     price:(d.price || d.amount || d.totalPrice || '') };
     log('下单成功 orderId='+U.orderId, 's');
     toast('下单成功, 正在拉订单详情');
-    paint();
+    U_ORDER_TOP = String(U.orderId);   paint();
     try{ await uRefreshOrderCard(); }catch(e){} /* 先拉详情: 拿 countDown 快照启动本地倒计时 */
     try{ await uPayOrder(); }catch(e){}
     try{ await uRefreshOrderCard(); }catch(e){}
@@ -3507,11 +3641,14 @@ function uOrderConfirm(){
   var xpC = uLiquidPick(m, 'wp_disinfectantGearId');
   var ox = uOptOf(xpC.list, U_SEL.dis);
   if(ox) bd += kv('除菌液', ox.name + ' +' + uYuan(uPriceOf(ox)) + ' 元');
-  bd += kv('共优惠', '0.00 元');
+  /* 共优惠这一行原来是恒 0 的死数据(券与红包没移植), 用户点名要折叠掉.
+     只有真算出了优惠才显示, 否则整行不出现, 也不留那句解释. */
+  var _disc = uDiscountFen(m);
+  if(_disc > 0){
+    bd += kv('共优惠', '-' + uYuan(_disc) + ' 元');
+  }
   bd += kvH('实付金额', '<b style="color:var(--danger);font-size:16px">'
     + uYuan(uTotalFen()) + ' 元</b>');
-  bd += '<div class="sub" style="margin-top:8px">券与红包本次不移植, 共优惠恒 0. '
-    + '合计金额由服务端复核, 与这里显示的一致.</div>';
   modal({ title:'确认下单', body: bd,
     actions:[{ label:'确认下单', cls:'btn-p', fn:runOrder }, { label:'再想想' }] });
 }
@@ -3521,37 +3658,139 @@ function uOrderConfirm(){
    -> 响应 jumpToQuery=true 直接轮询(0元单/已付), 否则用响应里的渠道参数拉起支付.
    H5 壳里能做的就是 openUrl(收银台/支付宝 H5), 由系统浏览器或支付宝接手. */
 var UPAY = { tried:false, url:null, raw:null };
-/* 支付入口: 只做一件事 -- 让用户选支付宝还是微信.
-   以前这里先探 payment/methods, 失败再探一次, 拼中文渠道名 + 错误码解释, 弹一大段话.
-   用户要的是"点哪个付哪个", 把选择权给出去就够了; 渠道真不可用由 arguments 的返回说话. */
+/* ============================================================
+   收银台: 内嵌原版 U净 H5
+
+   为什么不再自己拼参数: 逐渠道实测 payment/arguments 的真实返回是
+     unionPay   -> 只有 tn
+     wechatPay  -> 只有 JSAPI 参数(appid/prepayid/sign), 无 URL
+     dyPay      -> 只有抖音 App 拉起参数
+     abcPay     -> 只有 tokenID
+     cmbPayH5   -> 有 cmbH5Url + requestData, 但要 POST form
+     alipayF2F  -> 只给 alipays:// 深链(优惠支付专用)
+   这些都必须由原版收银台按渠道环境分派, 我们这里抄不全, 抄来也拉不起.
+   所以把整页嵌进来: H5 自己查 payment/methods, 自己 render 渠道, 自己拉起.
+
+   鉴权与宿主身份: H5 从 localStorage 读 token/userInfo, 从 UA 里找 "ujing".
+   Java 侧 openCashier 已经替我们办好这两件事(注入 + UA 追加), 页面只需传 orderId.
+   ============================================================ */
+function uCashierBridgeUrl(){
+  return 'https://wx.zhinengxiyifang.cn/static/washer-h5/commonWasher/latest/index.html';
+}
+
+/* 农行优惠认证: 走官方 OAuth(payment/abc/oauth), 与正版同渠道.
+   流程: 服务端拿授权 URL -> 内嵌 WebView 打开(农行官方授权页) ->
+   用户登录农行账号并授权 -> 农行回跳 abcAuth 页(自动提交 code 给服务端)
+   -> 认证结果弹窗. 全程不涉及付款. */
+async function uAbcAuth(oid){
+  var id = String(oid || U.orderId || '');
+  try{
+    toast('正在获取农行授权页...');
+    var q = 'branchType=3';
+    var j = await ucall('GET', '/api/v1/app/payment/abc/oauth?' + q, null, true);
+    if(j.code === 401){ uSessionDead(); return; }
+    var url = j && j.data && j.data.url;
+    if(!url || !/^https:/i.test(url)){
+      log('农行授权地址获取失败: ' + String(JSON.stringify(j)).slice(0, 160), 'e');
+      alertBox('农行授权入口暂时打不开',
+        '服务端没有返回授权地址(' + esc(String(j.code || '')) + '). 稍后再试, 或到正版 U净 App 完成农行登录.');
+      return;
+    }
+    log('农行授权页已打开: ' + url.slice(0, 90), 's');
+    try{ window.localStorage.setItem('ABC_AUTH_PENDING', '1'); }catch(e){}
+    if(window.HzNative && window.HzNative.openAuthPage){
+      /* 专用授权容器: 打开的就是授权 URL, 注入 U净 token 供回跳页调 userInfo */
+      window.HzNative.openAuthPage(url, String(U.token || ''));
+    } else {
+      openUrl(url);
+    }
+  }catch(e){
+    log('农行授权异常: ' + e.message, 'e');
+    alertBox('农行授权出错', esc(e.message));
+  }
+}
+
+/* 打开收银台. 返回 true 表示已交给原生, false 表示本壳没有这个能力. */
+function uOpenCashier(orderId){
+  var oid = String(orderId || U.orderId || '');
+  if(!oid){ toast('没有订单号'); return false; }
+  if(!(window.HzNative && window.HzNative.openCashier)){
+    log('本壳没有 openCashier 桥, 退回旧支付链', 'w');
+    return false;
+  }
+  window.__hzCashier = window.__hzCashier || {};
+  window.__hzCashier.orderId = oid;
+  /* 先链上页面启动时挂的常驻监听, 再叠收银台自己这份.
+     直接覆盖会把微信 / 银联的回包吃掉. */
+  var _prevEv = window.__hzCashier.event;
+  window.__hzCashier.event = function(ev){
+    if(_prevEv){ try{ _prevEv(ev); }catch(ePV){} }
+    try{
+      var st = ev && ev.stage;
+      log('收银台事件: ' + String(JSON.stringify(ev || {})).slice(0, 160), 'w');
+      if(st === 'paid'){
+        toast('收到支付完成, 正在刷新订单');
+        uCashierAware(oid);
+      } else if(st === 'external'){
+        toast('已交给' + (ev.scheme === 'wechat' ? '微信' : '支付宝') + '完成付款');
+      }
+    }catch(e){ log('收银台事件处理异常: ' + e.message, 'w'); }
+  };
+  var info = '';
+  try{
+    info = JSON.stringify({ id: (U.userId || null), phone: (U.phone || ''), token: (U.token || '') });
+  }catch(e){ info = '{}'; }
+  try{
+    window.HzNative.openCashier(oid, info, String(U.token || ''));
+    log('收银台已打开: 订单 ' + oid, 's');
+    return true;
+  }catch(e){
+    log('打开收银台失败: ' + e.message, 'w');
+    return false;
+  }
+}
+
+/* 收银台回报已付之后: 查一次真实状态, 别信前端. */
+async function uCashierAware(oid){
+  var id = String(oid || (window.__hzCashier && window.__hzCashier.orderId) || U.orderId || '');
+  if(!id) return;
+  try{
+    var d = await uQueryOrderById(id);
+    if(d){
+      UO.det[String(id)] = d;
+      (UO.items || []).forEach(function(o){ if(String(o.orderId || o.id) === String(id)) o.status = Number(d.status); });
+      log('订单 ' + id + ' 支付后状态: ' + uStTxt(Number(d.status)) + ' (' + d.status + ')', 's');
+      var sn = Number(d.status);
+      if(sn === 20 || sn === 21 || sn === 22 || sn === 30 || sn === 40){
+        toast('支付成功, 可以启动机器了');
+      }
+    }
+    try{ await uLoadOrders(true); }catch(e0){}
+    if(CUR === 'laundry') paint();
+    if(CUR === 'uorder') paint();
+  }catch(e){
+    log('支付后查状态失败: ' + e.message, 'w');
+    toast('已收到支付结果, 状态刷新失败, 稍后到订单里看');
+  }
+}
+
+/* 支付入口: 直接开原版 H5 收银台.
+   以前这里先探 payment/methods, 自己按 pri 排序, 自己拼 modal 列渠道,
+   用户选完再 uPayWith 逐渠道硬拼参数 -- 实测 7 个渠道里 5 个根本拼不出能打开的东西.
+   现在把这一整层交给原版收银台: 它读同一个 payment/methods, 用同一份 token,
+   按渠道分派(ujing 走 alipayRequest 回到本壳的原生支付宝 SDK, 其余按各自 SDK 拉起). */
 async function uPayOrder(){
   if(!U.orderId) return;
   UPAY.tried = false; UPAY.url = null; UPAY.raw = null;
-  modal({ title:'选择支付方式',
-    body: '订单 <b>' + esc(String(U.orderId)) + '</b> 已经建好, 选一个方式付掉.'
-      + '<br><span style="font-size:12px;opacity:.7">没付款前机器不会被占用, 超过倒计时会自动释放.</span>',
-    actions: [
-      { label:'支付宝', cls:'btn-p', fn:function(){ closeModal(); uPayWith('alipay'); } },
-      { label:'先不付' }
-    ] });
+  /* 先让用户选渠道. 只有一条可走时 uPaySheet 内部会直接进收银台, 不会多弹一层. */
+  return uPaySheet(U.orderId);
 }
 
-/* 下单后自动拉起默认渠道(不弹选择, 也不弹解释文案). */
+/* 下单后自动拉起支付. 只有可走渠道多于一条时才弹选择层,
+   只剩支付宝一条时 uPaySheet 内部直接进原版收银台, 与改造前无感一致. */
 async function uPayAuto(){
   if(!U.orderId) return;
-  var pickCh = 'alipay';
-  try{
-    var mq0 = 'orderId=' + encodeURIComponent(U.orderId)
-      + (window.__hzSSID ? ('&serviceSubjectId=' + encodeURIComponent(window.__hzSSID)) : '')
-      + (U.result && U.result.deviceId ? ('&deviceId=' + encodeURIComponent(U.result.deviceId)) : '');
-    var m0 = await ucall('GET', '/api/v1/payment/methods?' + mq0, null, true);
-    var ch0 = (m0 && m0.data && (m0.data.channels || m0.data.payways)) || [];
-    var en0 = ch0.map(function(c){ return String(c.channel || ''); }).filter(function(x){ return !!x; });
-    if(en0.length){ log('该店支付渠道: ' + en0.join(','), 's'); }
-    /* 只有店只开了唯一一个渠道、且不是支付宝时才顺着它; 多渠道德一律先给支付宝. */
-    if(en0.length === 1 && en0[0] !== 'alipay') pickCh = en0[0];
-  }catch(eM0){ log('payment/methods 读取失败, 按支付宝试: ' + eM0.message, 'w'); }
-  return uPayWith(pickCh);
+  return uPaySheet(U.orderId);
 }
 
 /* ============================================================
@@ -3801,9 +4040,427 @@ function uAliErr(st){
   return m[String(st || '')] || ('没付成(' + (st || '无返回') + ')');
 }
 
+/* ============================================================
+   支付渠道选择层
+
+   数据源: GET /api/v1/payment/methods?orderId=<oid>
+   真实 7 渠道(该账号实测): unionPay(默认,权重114) / abcPay(15) /
+   alipayF2F(12) / dyPay(11) / wechatPay(0) / cmbPayH5(0) / ticketPay(0).
+   服务端字段: channel / name / isDefault / isRecommended / weight4Display /
+   balance / bindCardStatus / noSupportRedPacket / noSupportCoupon /
+   alterChannel / branchType / topic / highlightColor.
+
+   每个渠道能不能真付, 取决于它的 payment/arguments 返回里有没有可直接
+   拉起的东西, 而不是取决于服务端有没有列它. 所以这里做一张能力表.
+   ============================================================ */
+var UPAY_CH = {
+  cache: null,        /* {oid, ts, list} */
+  ttl: 30000
+};
+
+/* 渠道能力表. mode:
+     h5cashier  走原版 H5 收银台(已真机验证 payV2 闭环)
+     dyh5       服务端给完整 h5_url, 内嵌 WebView 直接打开
+     cmbform    服务端给 cmbH5Url + requestData, 标准 form POST
+     wxh5       微信 H5 / scheme 两条通道
+     scheme     系统深链(alipays://)
+     nodll      服务端只给 SDK 参数, 本壳没有对应 SDK, 点了也付不了
+     disabled   服务端明确说不可用(余额不足等)
+*/
+var UPAY_CAP = {
+  alipay:     { mode:'h5cashier', cn:'支付宝' },
+  alipayF2F:  { mode:'h5cashier', cn:'支付宝', topic:'内置收银台' },
+  dyPay:      { mode:'dyh5',      cn:'抖音支付' },
+  cmbPayH5:   { mode:'cmbform',   cn:'一网通支付' },
+  /* 微信(第 152 轮按用户指令下线): 微信支付校验锚在 Binder uid --
+     它按调用进程的真实 uid 反查包名+签名, 必须与开放平台 appid 登记值一致.
+     本壳包名 com.hz.water / 签名 SHA-1 7ed4d54a... 未登记, 所以 errCode=-1
+     0.7 秒即拒(Context 伪装/包名伪装实测均无效). 唯一出路是在开放平台登记
+     本壳包名, 代码侧无解. 因此不向用户展示这条, 避免白试.
+     历史订单里若出现 wechatPay, uChCn 仍能给中文名, 不影响显示. */
+  wechatPay:  { mode:'disabled',  cn:'微信支付', why:'本壳不支持微信支付(签约主体未登记)' },
+  /* 银联: Java 侧已接 UPPayAssistEx 3.5.13, 有 UPPayWapActivity 收银台页. */
+  unionPay:   { mode:'uppay',     cn:'银联' },
+  /* 农行: 已把 8 种参数形态全试过(abcPay / branchType 0-2 / payVersion 2 /
+     abcH5Pay / abcWasherH5 / abcPayH5), 服务端只回一个 tokenID, 没有任何
+     url 或 h5 链接; 农行 App 只声明 wonderfullpush / bankabc / mpaasscheme
+     三个 scheme, 也没有能直接付款的入口. 原版 U净 的 dex 里同样没有农行
+     SDK 类, 说明这条路本来就只能靠鸿蒙原生模块. 所以本壳只能置灰. */
+  /* 农行双行(与 U净 一致的平行按钮):
+     - abcPay  = 真支付行: 服务端 tokenID -> 拉农行掌银收银页(能到输密码即通)
+     - abcAuth = 授权行: 官方 OAuth 登录农行绑优惠资格, 一次绑定持久生效.
+       优惠是"农行支付时立减", 不发到 U净余额. */
+  abcPay:     { mode:'pay',       cn:'农行支付', topic:'农行卡支付(满2.01减2, 4次/月)', why:'' },
+  abcAuth:    { mode:'abcauth',   cn:'农行优惠授权', topic:'登录农行绑定立减资格(一次绑定, 支付自动减)', why:'' },
+  ticketPay:  { mode:'disabled',  cn:'店铺小票', why:'小票余额不足, 需要先到店里充值' }
+};
+
+/* 拉真实渠道列表. 失败返回空数组, 调用方自己兜底. */
+async function uLoadPayChannels(oid){
+  var id = String(oid || U.orderId || '');
+  if(!id) return [];
+  var c = UPAY_CH.cache;
+  if(c && c.oid === id && (Date.now() - c.ts) < UPAY_CH.ttl) return c.list;
+  var q = 'orderId=' + encodeURIComponent(id);
+  if(window.__hzSSID) q += '&serviceSubjectId=' + encodeURIComponent(window.__hzSSID);
+  try{
+    var j = await ucall('GET', '/api/v1/payment/methods?' + q, null, true);
+    if(j.code === 401){ uSessionDead(); return []; }
+    var raw = (j.data && (j.data.channels || j.data.payways)) || [];
+    var list = [];
+    for(var i=0;i<raw.length;i++){
+      var r = raw[i] || {};
+      var ch = String(r.channel || '');
+      if(!ch) continue;
+      var cap = UPAY_CAP[ch] || { mode:'nodll', cn:'' };
+      var usable = cap.mode !== 'disabled' && cap.mode !== 'nodll';
+      list.push({
+        channel: ch,
+        cn: cap.cn || uChCn(ch, r.name),
+        name: String(r.name || cap.cn || ch),
+        topic: String(r.topic || cap.topic || ''),
+        def: r.isDefault === true,
+        rec: r.isRecommended === true,
+        w: Number(r.weight4Display || 0),
+        balance: Number(r.balance || 0),
+        btype: Number(r.branchType || 0),
+        mode: cap.mode,
+        usable: usable,
+        why: cap.why || (usable ? '' : '这个渠道要专用 SDK, 本壳没有接入')
+      });
+    }
+    /* 同名渠道只留一条(支付宝在不同环境可能同时给 alipay 和 alipayF2F,
+       两行都叫"支付宝"会让用户以为重复扣款). 保留先出现的那条. */
+    var seenCn = {};
+    var dedup = [];
+    for(var dI=0; dI<list.length; dI++){
+      var dk = list[dI].cn || list[dI].channel;
+      if(seenCn[dk]) continue;
+      seenCn[dk] = 1;
+      dedup.push(list[dI]);
+    }
+    list = dedup;
+    /* 排序: 可用优先, 然后服务端权重降序, 权重相同按默认/推荐.
+       不照 isDefault 排第一, 因为该账号默认是银联, 而银联的参数只能喂 SDK. */
+    list.sort(function(a,b){
+      if(a.usable !== b.usable) return a.usable ? -1 : 1;
+      if(a.w !== b.w) return b.w - a.w;
+      if(a.def !== b.def) return a.def ? -1 : 1;
+      if(a.rec !== b.rec) return a.rec ? -1 : 1;
+      return 0;
+    });
+/* 服务端列的是 alipayF2F(当面付深链), 不是 alipay.
+       但已真机验证能完整跑通 payV2 的是原版 H5 收银台这条路, 所以补一条
+       合成的 alipay 选项顶在最前面, 不让用户去踩没验证过的深链. */
+    UPAY_CH.cache = { oid:id, ts:Date.now(), list:list };
+    log('支付渠道 ' + list.length + ' 个: ' + list.map(function(x){
+      return x.channel + (x.usable ? '' : '(不可用)');
+    }).join(' '), 's');
+    return list;
+  }catch(e){
+    log('拉取支付渠道失败: ' + e.message, 'w');
+    return [];
+  }
+}
+
+/* 底部渠道弹层. 只有一条渠道时直接走它, 不弹. */
+async function uPaySheet(oid){
+  var id = String(oid || U.orderId || '');
+  if(!id){ toast('没有订单号'); return; }
+  U.orderId = id;
+  var list = await uLoadPayChannels(id);
+  if(!list.length){
+    /* 渠道拿不到就退回原版收银台, 那里至少能付支付宝. */
+    if(uOpenCashier(id)) return;
+    uPayWith('alipay');
+    return;
+  }
+  var usable = list.filter(function(x){ return x.usable; });
+  if(usable.length === 1 && usable[0].mode === 'h5cashier'){
+    /* 只剩支付宝一条可走时不再多弹一层, 直接进原版收银台. */
+    if(uOpenCashier(id)) return;
+    uPayWith(usable[0].channel);
+    return;
+  }
+  var h = '<div class="paysheet">';
+  for(var i=0;i<list.length;i++){
+    var x = list[i];
+    var cls = 'paysheet-row' + (x.usable ? '' : ' off');
+    var tags = '';
+    if(x.def) tags += '<span class="ps-tag ps-tag-def">默认</span>';
+    if(x.rec) tags += '<span class="ps-tag">推荐</span>';
+    var sub = x.usable ? (x.topic || '') : x.why;
+    h += '<div class="' + cls + '" data-pch="' + esc(x.channel) + '"'
+      + (x.usable ? '' : ' aria-disabled="true"') + '>'
+      + '<div class="ps-main"><div class="ps-name">' + esc(x.cn) + tags + '</div>'
+      + (sub ? '<div class="ps-sub">' + esc(sub) + '</div>' : '')
+      + '</div>'
+      + '<div class="ps-go">' + (x.usable ? '&gt;' : '-') + '</div>'
+      + '</div>';
+  }
+  h += '</div>';
+
+  /* 弹层走 modal, 但样式单独给, 不挤在普通按钮栏里. */
+  modal({
+    title: '选择支付方式',
+    body: h + '<div style="font-size:12px;opacity:.68;margin-top:10px">'
+      + '金额 <b>&yen;' + esc(uPayAmountText()) + '</b>, 订单 <b>' + esc(id) + '</b>.'
+      + '<br>付完会自动刷新状态, 不用手动点.</div>',
+    actions: [{ label:'取消' }]
+  });
+  var box = $('dlg');
+  if(!box) return;
+  Array.prototype.forEach.call(box.querySelectorAll('[data-pch]'), function(n){
+    n.onclick = function(){
+      var ch = String(n.getAttribute('data-pch') || '');
+      var item = null;
+      for(var k=0;k<list.length;k++){ if(list[k].channel === ch){ item = list[k]; break; } }
+      if(!item || !item.usable){
+        toast((item && item.why) || '这个渠道本壳付不了');
+        return;
+      }
+      closeModal();
+      if(item.mode === 'h5cashier'){
+        if(uOpenCashier(id)) return;
+      }
+      if(item.mode === 'abcauth'){
+        uAbcAuth(id);
+        return;
+      }
+      uPayWith(ch);
+    };
+  });
+}
+
+/* 弹层里显示的金额: 优先服务端 detail, 退到本地缓存. */
+function uPayAmountText(){
+  try{
+    var d = UO.det[String(U.orderId)] || U.lastOrder || {};
+    var v = d.payPrice != null ? d.payPrice
+          : (d.totalPrice != null ? d.totalPrice : d.washPrice);
+    if(v == null || v === '') return '1';
+    var n = Number(v);
+    return isNaN(n) ? String(v) : (Math.round(n * 100) / 100).toFixed(2).replace(/\.00$/, '');
+  }catch(e){ return '1'; }
+}
+
+/* 内嵌 WebView 打开第三方 H5 收银台(抖音支付这条路).
+   为什么不用系统浏览器: 付完要跳回本应用刷新状态, 跳出去就断了. */
+function uOpenPayWeb(url, title, oid){
+  if(!url){ toast('没有支付链接'); return false; }
+  if(window.HzNative && window.HzNative.openInternal){
+    try{
+      window.HzNative.openInternal(String(url));
+      log(title + ' H5 收银台已打开: ' + String(url).slice(0, 110), 's');
+      if(oid) uPollLastPay(oid, 'web', 'h5');
+      return true;
+    }catch(e){ log('打开 ' + title + ' H5 失败: ' + e.message, 'w'); }
+  }
+  openUrl(url);
+  if(oid) uPollLastPay(oid, 'web', 'h5');
+  return true;
+}
+
+/* 下单时真实可用的优惠金额(分). 券与红包接口本次没接, 一律 0;
+   留这个函数是为了以后接上券包时只改这一处, 展示层不必再动. */
+function uDiscountFen(m){
+  try{
+    if(U_SEL && U_SEL.couponFen) return Number(U_SEL.couponFen) || 0;
+    if(U_SEL && U_SEL.redPacketFen) return Number(U_SEL.redPacketFen) || 0;
+  }catch(e){}
+  return 0;
+}
+
+/* 微信 SDK 的 errCode 全是数字, 直接甩给用户等于没说.
+   这里翻译成人话, 并且把本壳特有的那条(开放平台没登记本壳包名+签名)说清楚:
+   实测链路是通的 -- sendReq=true, 微信自己的 WXPayEntryActivity 也回调到了我们的
+   WXPayEntryActivity, 只是登记在微信开放平台的是原版 com.midea.vm.washer + Midea
+   签名, 本壳是 com.hz.water + 自签, 微信强校验过不去, 回 ERR_COMM(-1). */
+function uWxErrText(raw){
+  var s = String(raw == null ? '' : raw);
+  var m = s.match(/-?\d+/);
+  var code = m ? Number(m[0]) : 0;
+  if(s.indexOf('-1') >= 0 || code === -1){
+    return '微信客户端接了单, 但拒了这笔付款.<br><br>'
+      + '原因: 微信开放平台上登记的是正版 U净 的包名与签名, 本壳是另一个包名加自签, '
+      + '微信强校验过不去(errCode=-1 通用错误). 这一条只能由微信侧放行, 应用内改不了.'
+      + '<br><br>换支付宝, 抖音支付, 银联或一网通都行.';
+  }
+  if(code === -2) return '你在微信里取消了这笔付款.';
+  if(code === 0) return '微信侧显示成功, 正在刷新订单状态.';
+  return '微信返回错误码 ' + (m ? m[0] : '未知') + '. 换一个支付方式再试, 订单不会重复扣钱.';
+}
+
+/* 招行一网通. 三条路都试过了, 只有第三条能同时满足"能付"和"能退回":
+   1) 页面 form POST + target='_self'  -> 整页导航, 本应用页面栈被顶掉,
+      用户点完回不来(实测"一网通没有返回退出")
+   2) GET 拼 jsonRequestData 到 query  -> 招行只认 POST, GET 拿回来的
+      redirectForm 里 input 是空的, 提交后报 NPHH001.参数格式不正确
+      (对照证据: emu/_r149y/cmb_get.html 空 form vs cmb_post.html 有完整参数)
+   3) WebView.postUrl 原生 POST + 内嵌 Dialog -> 正确. 参数齐、页面栈不丢、
+      顶部有"关闭并返回". 走 HzNative.openPayPost 桥.
+
+   requestData 形如 "charset=utf-8&jsonRequestData=<urlencoded>",
+   原样作为 POST body 发出去即可(招行自己就是这么收的). */
+function uCmbPostBody(requestData){
+  var v = String(requestData || '');
+  /* 服务端给的已经是 urlencoded 的 k=v&k=v, 直接用; 只去掉可能的空串 */
+  if(!v) return '';
+  if(v.indexOf('jsonRequestData=') >= 0) return v;
+  /* 万一只给了裸 JSON, 自己包一层 */
+  return 'jsonRequestData=' + encodeURIComponent(v);
+}
+
+function uCmbPay(action, requestData){
+  if(!action || !requestData){ toast('一网通参数不全'); return false; }
+  var body = uCmbPostBody(requestData);
+  if(HASNATIVE && window.HzNative && window.HzNative.openPayPost){
+    try{
+      window.HzNative.openPayPost(String(action), body, '一网通支付');
+      log('一网通原生 POST 已发: ' + String(action).slice(0, 80), 's');
+      if(U.orderId) uPollLastPay(U.orderId, 'cmbPayH5', 'cmb');
+      return true;
+    }catch(e){ log('openPayPost 调用失败: ' + e.message, 'w'); }
+  }
+  /* 没有那个桥时的兜底: 内嵌 WebView + GET(可能被招行判参数错, 但至少页面栈不丢) */
+  var v2 = String(requestData);
+  var m2 = v2.match(/jsonRequestData=([\s\S]*)$/);
+  if(m2){
+    try{ v2 = decodeURIComponent(m2[1]); }catch(e2){ v2 = m2[1]; }
+  }
+  var u = String(action) + (String(action).indexOf('?') >= 0 ? '&' : '?')
+    + 'jsonRequestData=' + encodeURIComponent(v2);
+  log('本壳没有 openPayPost 桥, 退到 GET 内嵌', 'w');
+  return uOpenPayWeb(u, '一网通支付', U.orderId);
+}
+
+/* 调主 WebView 的原生支付桥(HzNative.payUnion / payWechat), 等 __hzCb 回包.
+   stage 语义:
+     launched -> 原生收银台/微信已经起来了, 页面这边不用再动
+     paid     -> 成功
+     cancel   -> 用户取消
+     fail     -> 失败, memo 里有原因
+   超时(60s 未回)按"已发起"处理, 不打扰用户, 后续仍可点"我已支付". */
+/* 归一化原生支付桥的回包:
+     {"ok":false,"err":"..."}          -> fail
+     {"stage":"fail","memo":"..."}     -> fail
+     {"stage":"launched"}              -> ok (收银台/微信已起来)
+     {"stage":"paid"/"cancel"}         -> ok
+     超时占位 {ok:true,stage:'launched',timeout:true} -> ok */
+function uPayNativeRes(r){
+  if(!r || typeof r !== 'object') return { ok:false, err:'no reply' };
+  var st = String(r.stage || '');
+  if(st === 'fail') return { ok:false, err: String(r.memo || r.err || 'fail'), stage: st };
+  if(r.ok === false) return { ok:false, err: String(r.err || r.memo || 'fail'), stage: st };
+  return { ok:true, stage: st || (r.ok ? 'ok' : ''), timeout: !!r.timeout };
+}
+
+function uPayNative(method, arg, tag){
+  return new Promise(function(resolve){
+    if(!HASNATIVE || !window.HzNative || typeof window.HzNative[method] !== 'function'){
+      resolve({ ok:false, err:'本壳没有 ' + method + ' 桥' });
+      return;
+    }
+    var id = 'p' + (++cbSeq);
+    var done = false;
+    function fin(r){
+      if(done) return;
+      done = true;
+      delete window.__hzCb[id];
+      resolve(uPayNativeRes(r));
+    }
+    window.__hzCb[id] = fin;
+    var guard = setTimeout(function(){ fin({ ok:true, stage:'launched', timeout:true }); }, 60000);
+    try{
+      window.HzNative[method](id, String(arg == null ? '' : arg));
+    }catch(e){
+      clearTimeout(guard);
+      fin({ ok:false, err:String(e) });
+    }
+    log('原生支付桥 ' + method + ' 已发(' + tag + ')', 's');
+  });
+}
+
 async function uPayWith(channel){
   if(!U.orderId){ alertBox('没有订单', '先下单, 才谈得上支付.'); return; }
-  var body = { orderId: U.orderId, channel: channel, payVersion: 1 };
+  /* branchType 是服务端分渠道形态的开关, 不传/传 0 时抖青支付会返
+     payType="dyPay" 的小程序预支付包(本壳拉不起小程序), 传 1 才返
+     payType="dyH5Pay" + payInfo.h5_url(可直接用 WebView 打开付款).
+     其余渠道传 0 与不传等价. */
+  var payBType = 0;
+  try{
+    if(UPAY_CH.cache && String(UPAY_CH.cache.oid) === String(U.orderId)){
+      for(var bi=0; bi<UPAY_CH.cache.list.length; bi++){
+        if(String(UPAY_CH.cache.list[bi].channel) === String(channel)){
+          payBType = Number(UPAY_CH.cache.list[bi].btype || 0);
+          break;
+        }
+      }
+    }
+  }catch(eBt){}
+  if(String(channel).toLowerCase() === 'dypay' && !payBType) payBType = 1;
+  /* 农行特判(第 150 轮): abcPay 必须 branchType=3 才回 tokenID(真机抓包实证),
+     且通用流程的 alertBox 会提前 return -- 在通用流程之前自己走完整链:
+     payment/arguments(branchType=3) -> tokenID -> HzNative.abcPayLaunch 拉掌银. */
+  if(String(channel).toLowerCase() === 'abcpay'){
+    /* 第 152 轮(用户指令: 不跳正版, 壳内做完):
+       农行票据(tokenID)由掌银 App 自带的银联控件收银页消费 --
+       com.android.bankabc/com.unionpay.uppay.PayActivity, paydata=tokenID.
+       真机实证: 拉起后直接进农行自己的「云闪付支付开通 / 卡号 / 协议」页, 即支付流程.
+       顺序: 立减资格(可选) -> 取 tokenID -> 拉掌银收银页. */
+    var oidA = String(U.orderId || '');
+    var startAbcPay = async function(){
+      try{
+        log('农行支付: 取 tokenID...', 's');
+        var j2 = await ucall('GET', '/api/v1/payment/arguments?channel=abcPay&orderId='
+            + encodeURIComponent(oidA) + '&couponId=&isUseRedPacket=false&redPacketId=0'
+            + '&alipayF2FNoAds=false&branchType=3&jumpToAliMini=false&payVersion=1',
+            null, true);
+        if(j2.code === 401){ uSessionDead(); return; }
+        var pai = j2 && j2.data && j2.data.payInfo;
+        var tk = pai && (pai.tokenID || pai.tokenId);
+        if(!tk){
+          log('农行 arguments 异常: ' + String(JSON.stringify(j2)).slice(0, 160), 'e');
+          alertBox('农行支付发起失败', '服务端没给到农行票据(tokenID). 稍后再试或换渠道.');
+          return;
+        }
+        log('tokenID=' + String(tk).slice(0, 12) + '..., 拉掌银收银页...', 's');
+        if(U.orderId) uPollLastPay(U.orderId, 'abcPay', 'abc');
+        if(window.HzNative && window.HzNative.abcPayLaunch){
+          window.HzNative.abcPayLaunch(String(tk), oidA);
+        } else {
+          alertBox('壳版本过旧', '没有农行拉起桥, 请更新壳.');
+        }
+      }catch(eA){
+        log('农行支付异常: ' + String(eA && eA.message || eA), 'e');
+        alertBox('农行支付异常', esc(String(eA && eA.message || eA)));
+      }
+    };
+    var authState = null;
+    try{
+      if(window.HzNative && window.HzNative.abcAuthState){
+        authState = JSON.parse(window.HzNative.abcAuthState() || '{}');
+      }
+    }catch(eS){ authState = null; }
+    if(authState && String(authState.authed) === '1'){
+      startAbcPay();
+      return;
+    }
+    modal({
+      title: '农行立减资格',
+      body: '<div style="font-size:14px;line-height:1.7">'
+        + '农行支付可享 <b>满2.01减2(4次/月)</b> 立减, 需要'
+        + ' <b>登录农行绑定一次</b>(官方授权页, 一次绑定本机持久生效).'
+        + '<br><br><span style="opacity:.72;font-size:12px">绑定后再进行支付; '
+        + '也可以先跳过, 支付时不享受立减.</span></div>',
+      actions: [
+        { label: '去绑定', primary: true, fn: function(){ uAbcAuth(oidA); } },
+        { label: '跳过, 直接支付', fn: function(){ startAbcPay(); } }
+      ]
+    });
+    return;
+  }
+var body = { orderId: U.orderId, channel: channel, payVersion: 1, branchType: payBType };
   try{
     var q = [];
     for(var bk in body){ q.push(bk + '=' + encodeURIComponent(body[bk])); }
@@ -3818,11 +4475,104 @@ async function uPayWith(channel){
     var d = j.data || j.result || {};
     var pi = d.payInfo || d;
     if(d.jumpToQuery === true || d.skipPay === true){ toast('这笔不用付, 直接查询状态'); return; }
-    /* 微信: 正版走 ujingWechat 原生模块. 本壳没有微信 SDK,
-       改走微信官方 H5 / weixin:// scheme 两条通道, 不需要 appid 签名密钥. */
-    if(String(channel).toLowerCase().indexOf('wechat') >= 0){
-      if(await uPayWechat(pi, 'wx2')) return;
-      log('微信渠道没有可拉起的参数, 回落到通用分支', 'w');
+    var chLow = String(channel).toLowerCase();
+    /* 抖音支付: 服务端直接给完整 H5 收银台 URL, 内嵌 WebView 打开即可.
+       这条是 7 个渠道里除支付宝外唯一零 SDK 依赖就能付通的. */
+    if(chLow === 'dypay'){
+      var dyUrl = (pi && (pi.h5_url || pi.h5Url)) || (d && (d.h5_url || d.h5Url)) || '';
+      if(dyUrl){
+        /* dyH5Pay 形态: 服务端给了完整 H5 收银台, 内嵌 WebView 直接打开.
+           付完 ulpay 会按 return_schema=ujing:// 回跳, WebView 客户端拦下来
+           就当支付结果处理. */
+        uOpenPayWeb(dyUrl, '抖音支付', U.orderId);
+        return;
+      }
+      /* dyPay 形态: 服务端只给小程序预支付包(appid/partnerid/prepayid/sign),
+         要抖音 openApp 才能拉起, 本壳没有抖音 SDK. */
+      var dyPkg = (pi && (pi.prepayid || pi.package)) || '';
+      log('dyPay 返回小程序预支付包, 本壳拉不起抖音小程序; payType=' + String(d.payType || '')
+        + ' pkg=' + String(dyPkg).slice(0, 60), 'w');
+      alertBox('抖音支付要用抖音小程序',
+        '服务端这次返的是抖音小程序的预支付包(appid/prepayid/sign),'
+        + '只能由抖音 App 自己拉起, 本壳打不开.'
+        + '<br><br>换支付宝, 或者到正版 U净 App 里选抖音支付.');
+      return;
+    }
+    /* 招行一网通: cmbH5Url + requestData, 标准 form POST. */
+    if(chLow === 'cmbpayh5'){
+      var cmbAct = (pi && (pi.cmbH5Url || pi.url)) || '';
+      var cmbData = (pi && (pi.requestData || pi.jsonRequestData)) || '';
+      if(cmbAct && cmbData){
+        if(uCmbPay(cmbAct, cmbData)) return;
+      }
+      log('cmbPayH5 参数不全, payInfo=' + String(JSON.stringify(pi)).slice(0, 220), 'e');
+    }
+    /* 支付宝当面付: 服务端给 alipays:// 深链, 交系统拉起支付宝 App. */
+    if(chLow === 'alipayf2f'){
+      var aliDeep = (pi && (pi.url || pi.deepLink)) || '';
+      if(!aliDeep && typeof d === 'object' && d && typeof d.url === 'string') aliDeep = d.url;
+      if(aliDeep && /^alipays?:\/\//i.test(aliDeep)){
+        log('支付宝深链拉起: ' + String(aliDeep).slice(0, 120), 's');
+        if(HASNATIVE && window.HzNative.openScheme) window.HzNative.openScheme(aliDeep);
+        else openUrl(aliDeep);
+        if(U.orderId) uPollLastPay(U.orderId, 'alipayF2F', 'alipay');
+        toast('已交给支付宝');
+        return;
+      }
+      log('alipayF2F 没有可用深链, payInfo=' + String(JSON.stringify(pi)).slice(0, 220), 'e');
+    }
+    /* 银联: tn 喂给本壳接的 UPPayAssistEx, 由它拉起 UPPayWapActivity 收银台. */
+    if(chLow === 'unionpay'){
+      var upTn = (pi && (pi.tn || (pi.payInfo && pi.payInfo.tn))) || '';
+      if(!upTn && d && d.tn) upTn = d.tn;
+      if(upTn){
+        log('银联 tn 交给 UPPay: ' + String(upTn).slice(0, 40), 's');
+        if(U.orderId) uPollLastPay(U.orderId, 'unionPay', 'union');
+        var upR = await uPayNative('payUnion', upTn, 'unionPay');
+        if(!upR.ok){
+          log('银联桥回失败: ' + String(upR.err), 'e');
+          alertBox('银联控件没起来', esc(String(upR.err)));
+        } else {
+          log('银联收银台已拉起', 's');
+        }
+        return;
+      }
+      log('unionPay 无 tn 或无桥, payInfo=' + String(JSON.stringify(pi)).slice(0, 200), 'e');
+      alertBox('银联这条路缺料', '服务端没回 tn 票据, 或者本壳的银联桥没挂上.');
+      return;
+    }
+    /* 农行: 只回 tokenID, 同理需要农行 SDK. */
+    if(chLow === 'abcpay'){
+      /* 农行真支付: 服务端 payment/arguments 拿 tokenID -> Java AbcPayLaunch
+         拉农行掌银收银页. 能到输密码页即通(农行风控可能黑屏, 黑屏=入口对了). */
+      log('农行支付: 先拿 tokenID...', 's');
+      var oid2 = String(id || U.orderId || '');
+      var bt = 3;
+      try{
+        var j2 = await ucall('GET', '/api/v1/payment/arguments?channel=abcPay&orderId='
+            + encodeURIComponent(oid2) + '&couponId=&isUseRedPacket=false&redPacketId=0'
+            + '&alipayF2FNoAds=false&branchType=' + bt + '&jumpToAliMini=false&payVersion=1',
+            null, true);
+        if(j2.code === 401){ uSessionDead(); return; }
+        var pi = j2 && j2.data && j2.data.payInfo;
+        var tk = pi && (pi.tokenID || pi.tokenId);
+        if(!tk){
+          log('农行 arguments 异常: ' + String(JSON.stringify(j2)).slice(0, 160), 'e');
+          alertBox('农行支付发起失败', '服务端没给到农行票据(tokenID). 稍后再试或换渠道.');
+          return;
+        }
+        log('tokenID=' + String(tk).slice(0, 12) + '..., 拉农行掌银...', 's');
+        if(window.HzNative && window.HzNative.abcPayLaunch){
+          window.HzNative.abcPayLaunch(String(tk), oid2);
+        } else {
+          alertBox('壳版本过旧', '没有农行拉起桥, 请更新壳.');
+        }
+        return;
+      }catch(e){
+        log('农行支付异常: ' + e.message, 'e');
+        alertBox('农行支付异常', esc(e.message));
+        return;
+      }
     }
     /* 支付宝 orderInfo -> 原生 SDK(风控 scheme 已弃用); H5 url 仍直开.
        判定放宽: 原来要求 indexOf('alipay_sdk=') === 0, 只要串首多一个空格/换行/BOM
@@ -4262,7 +5012,8 @@ function uPayById(id){
   U.lastOrder = uFmt(UO.det[String(id)] || {});
   log('准备支付订单 ' + id, 'w');
   if(CUR === 'laundry') paint();
-  uPayOrder();
+  /* 点卡上的"去支付"必须能看到 7 个渠道, 所以走 uPaySheet 而不是直接进原版收银台. */
+  return uPaySheet(id);
 }
 
 /* 按单号下发启动指令 */
@@ -4792,52 +5543,44 @@ function pageWater(host){
     h += '</div>';
   }
 
-  /* ===== 4. 积分抵扣: 一个按钮切换 ===== */
+  /* ===== 4-7. 优惠折扣(暂不可用): 积分抵扣/签到与积分/券包 合并为一张大卡(第 212 轮) ===== */
   if(signed){
     var crOn = !!S.useIntegral2;
     var crOk = !!(W.lim && W.lim.hzIsUserIntegral === true);
-    h += '<div class="card"><h2>积分抵扣 '+badge(crOn?'已开启':'未开启', crOn?'on':'')+'</h2>';
+    var db = '';
+    db += '<div class="sub" style="margin:2px 0 6px;font-weight:600">积分抵扣 '
+      + (crOn?'<span class="pill on">已开启</span>':'<span class="pill">未开启</span>')+'</div>';
     if(W.lim){
-      h += kv('可抵积分', (W.lim.integralTotal||0)+' 分');
-      h += kv('起抵门槛', (W.lim.hzMinUsageCount||0)+' 分');
+      db += kv('可抵积分', (W.lim.integralTotal||0)+' 分');
+      db += kv('起抵门槛', (W.lim.hzMinUsageCount||0)+' 分');
     }
-    h += '<div class="row" style="margin-top:9px">'
+    db += '<div class="row" style="margin-top:9px">'
       + '<button class="'+(crOn?'btn-r':'btn-p')+' btn-f" id="wCrToggle">'
       + (crOn?'关闭积分抵扣':'开启积分抵扣')+'</button></div>';
-    h += '<div class="sub">'+(crOk
+    db += '<div class="sub">'+(crOk
       ? '服务端已对该账号开放抵扣. 开启后出水会带 useIntegral=2.'
       : '服务端未对该账号开放抵扣(hzIsUserIntegral 不为 true), 打开也不会真扣积分.')+'</div>';
-    h += '</div>';
-  }
-
-  /* ===== 5. 取水订单: 已删(用户: 没用; 出水走预付卡余额, 无独立支付订单) ===== */
-
-  /* ===== 6. 签到与任务 ===== */
-  if(signed){
-    h += '<div class="card"><h2>签到与积分</h2>';
-    h += '<div class="row"><button class="btn-f" id="wSign">签到</button>'
+    db += '<div class="sub" style="margin:10px 0 6px;font-weight:600">签到与积分</div>';
+    db += '<div class="row"><button class="btn-f" id="wSign">签到</button>'
       + '<button class="btn-f" id="wTask">看任务</button></div>';
-    if(W.signed) h += '<div class="sub">'+esc(W.signed)+'</div>';
-    h += '<div class="sub">官方的 /signin/doUserSignIn 已经下线, 签到已并进"每日任务", '
+    if(W.signed) db += '<div class="sub">'+esc(W.signed)+'</div>';
+    db += '<div class="sub">官方的 /signin/doUserSignIn 已经下线, 签到已并进"每日任务", '
       + '并且只在第三方页面里完成才发分, 客户端只能把入口递过去.</div>';
-    h += '</div>';
-  }
-
-  /* ===== 7. 券包 ===== */
-  if(signed){
-    h += '<div class="card"><h2>券包 '+badge(WV.loaded?(WV.items.length+' 张'):'-')+'</h2>';
-    h += '<div class="row"><button class="btn-f" id="wVcAvail">可用券</button>'
+    db += '<div class="sub" style="margin:10px 0 6px;font-weight:600">券包 '
+      + (WV.loaded?(WV.items.length+' 张'):'-')+'</div>';
+    db += '<div class="row"><button class="btn-f" id="wVcAvail">可用券</button>'
       + '<button class="btn-f" id="wVcAll">全部券</button></div>';
     if(WV.loaded){
-      if(!WV.items.length) h += '<div class="empty">没有券</div>';
-      else h += WV.items.slice(0,5).map(function(v){
+      if(!WV.items.length) db += '<div class="empty">没有券</div>';
+      else db += WV.items.slice(0,5).map(function(v){
         return '<div class="li" style="cursor:default"><div class="li-t">'
           + '<span>'+esc(v.shopName||'通用券')+'</span><b>'+esc(v.faceValue)+' 元</b></div>'
           + '<div class="li-s">'+esc(v.startDate)+' 至 '+esc(v.endDate)
           + ' | 满 '+esc(v.minGcoins)+' 可用</div></div>';
       }).join('');
     }
-    h += '</div>';
+    h += foldCard('wdisc', '优惠折扣 <span class="pill">暂不可用</span>', db,
+      ACC.fx.folds.wdisc === true);
   }
 
   host.innerHTML = h;
@@ -5365,13 +6108,17 @@ function askPerm(kind){
 /* ============================================================
    6.6 更新: 镜像优先, 直连兜底
    ============================================================ */
-var APP_VER = '1.2.0';
+var APP_VER = '1.2.1';
 var VER_KEY = 'hz_ver_v10';
 /* GitHub 仓库(owner/repo). 更新源与"源码仓库"都靠它拼地址.
    发版时把按架构打的包传到 Release, 名字要对上 updApkName() 的返回值. */
 var REPO = 'Zoburor/hz-water';
 var REPO_URL = 'https://github.com/' + REPO;
 var REPO_LIC = '个人学习与交流许可 v1.0';
+
+/* 本地假源开关: 只在模拟器上验证"检测到更新 + 能下载"时临时填地址(例如 http://10.0.2.2:8899).
+   填了之后版本源与下载源都只走它, 完全不碰真实 GitHub. **正式发布必须留空串.** */
+var TEST_FEED = '';
 
 /* 更新源按顺序尝试: 国内镜像优先, 然后 GitHub 直连, 最后走 cdn 中转 */
 /* 按机型适配: 原生 deviceInfo() 给出 ABI, 优先取该架构的包名,
@@ -5402,6 +6149,7 @@ function updApkName(){
   return '';
 }
 function buildSources(){
+  if(TEST_FEED) return [ { id:'test', name:'本地测试源', url:TEST_FEED + '/hz-water.apk' } ];
   /* 四个源**并行竞速**: 点下载就四路一起开, 谁先下完并通过校验谁赢, 其余源立刻被淘汰.
      不再先串行探测: 探测阶段每个源最长要等 21 秒, 6 个源串下来用户要盯着看半分钟.
      架构专用包与通用包字节相同(APK 里没有 lib/), 所以不再按架构分两轮;
@@ -5419,6 +6167,10 @@ function updRebuild(){ UPDATE_SOURCES = buildSources(); }
 /* state 只活在内存里: 退出应用回到 idle, 按钮文字回到"检查更新" */
 var UPD = { lastCheck:0, checking:false, results:{}, done:false,
             state:'idle', remote:'', msg:'', remoteMeta:null };
+/* rescan 的结论必须存在状态里: 下载卡每次重绘都会重建 #updRescanMsg 节点,
+   直接改节点 textContent 会在下一次 updPaintProg() 里被冲掉(实测卡在"正在比对...").
+   注: 这行必须写在 var UPD 之后 -- 写在前面会抛 TypeError 并整块打断脚本. */
+UPD.rescanMsg = '';
 
 function verLoad(){
   try{
@@ -5451,6 +6203,7 @@ function cmpVer(a, b){
    docs/version.json 的通道, 全都失败才回落到 GitHub API.
    顺序按"国内可达性"排: ghfast 镜像 -> gh-proxy 镜像 -> jsDelivr -> raw -> API. */
 function verSources(){
+  if(TEST_FEED) return [ { id:'vf-test', name:'本地测试源', url:TEST_FEED + '/version.json' } ];
   return [
     { id:'vf-ghfast', name:'ghfast 镜像', url:'https://ghfast.top/https://raw.githubusercontent.com/' + REPO + '/main/docs/version.json' },
     { id:'vf-ghp2',   name:'gh-proxy 镜像', url:'https://gh-proxy.com/https://raw.githubusercontent.com/' + REPO + '/main/docs/version.json' },
@@ -5540,6 +6293,14 @@ function fetchRemoteVer(done){
    条目写作口径: 只按发布页发过的版本记账(用户只看得见那几版), 不写内部小版本号, 不写函数名与行号. 当前只有 1.0.3 与 1.1.0 两条, 1.1.0 里是 1.0.3 之后的全部改动.
    --------------------------------------------------------------- */
 var CHANGELOG = {
+  '1.2.1': { date:'2026-11-18', notes:[
+      '新增: 农行掌银支付通道, 洗衣订单可直接拉起掌银付款',
+      '新增: 农行授权登录入口',
+      '新增: 银联与微信支付入口',
+      '取水页新增"优惠折扣"卡片, 收纳积分抵扣/签到/券包',
+      '修复: 洗衣订单卡按钮大小不一致, 现已等宽等高',
+      '修复: 个性化里主题/动效/启动页子项点击无反应的问题'
+    ]},
   '1.2.0': { date:'2026-11-14', notes:[
       '界面配色与布局更新: 新增 Nord 深/浅两套主题(共八套), 卡片圆角与阴影调整, 页头与底栏跟随主题配色',
       '设置页重排: 账号, 个性化, 提醒, 更新, 赞赏, 权限, 数据来源, 关于; 长内容卡片支持折叠',
@@ -5673,6 +6434,21 @@ function updSnap(){
   return null;
 }
 
+/* 设置页更新卡里那行状态文字. 与 updCheckLabel 同源同口径,
+   区别只是它必须把"有没有新版"直接说出来, 而不是只靠按钮文字暗示. */
+function updSetTip(){
+  var st = UPD.state || 'idle';
+  if(st === 'checking') return '正在读远端版本号, 依次试 4 个镜像, 慢是正常的.';
+  if(st === 'update') return '远端 v' + (UPD.remote || '') + ' 比本地 v' + APP_VER + ' 新, 点上面的按钮下载.';
+  if(st === 'downloading') return '正在下载, 进度在更新页里看.';
+  if(st === 'ready') return 'v' + (UPD.readyTag || UPD.remote || '') + ' 已下好放在缓存里, 点上面的按钮交给系统安装器.';
+  if(st === 'latest') return (UPD.remote === APP_VER)
+    ? ('远端 v' + UPD.remote + ' 与本地一致, 已经是最新, 一个字节都不用下.')
+    : ('远端 v' + (UPD.remote || '') + ' 不比本地 v' + APP_VER + ' 新, 不用更新.');
+  if(st === 'error') return '读不到远端版本号: ' + String(UPD.msg || '').slice(0, 90);
+  return '还没查过. 进更新页会自动检测一次, 也可以在这里点按钮.';
+}
+
 function updCheckLabel(){
   var st = UPD.state || 'idle';
   if(st === 'update' && UPD.remote) return '可用更新 v' + UPD.remote + ' 点击下载';
@@ -5687,8 +6463,68 @@ function updCheckLabel(){
   return UPD_TEXT[st] || UPD_TEXT.idle;
 }
 
+/* 刷设置页那张卡(按钮文字 + 状态行). 单独抽出来是因为它必须在
+   updPaintCheck 的"更新页容器不存在就 return"之前执行: 用户站在设置标签页上时
+   那个容器根本不在文档里, 不抽出来状态行就永远停在"还没查过". */
+/* 按当前更新状态算出标题胶囊该显示什么. 设置卡与更新页共用,
+   避免两处各写一遍又走得不一样。
+   返回 { txt, cls }: cls 是 pill 的附加类名(on 绿 / warn 橙 / bad 红)。 */
+function updPillState(){
+  var st = UPD.state || 'idle';
+  if(st === 'update') return { txt: '可更新 v' + (UPD.remote || ''), cls: 'warn' };
+  if(st === 'ready') return { txt: '待安装 v' + (UPD.readyTag || UPD.remote || ''), cls: 'on' };
+  if(st === 'checking') return { txt: '检查中', cls: '' };
+  if(st === 'downloading') return { txt: '下载中', cls: 'warn' };
+  if(st === 'latest') return { txt: '已是最新', cls: 'on' };
+  if(st === 'error') return { txt: '检查失败', cls: 'bad' };
+  /* 还没查过: 显示本地版本号本身, 不加"最新"的暗示 */
+  return { txt: APP_VER, cls: '' };
+}
+
+/* 设置卡上的按钮文案. 与 updCheckLabel() 分开是刻意的:
+   更新页那个按钮表示"在这里当场做"(点击下载 / 点击安装);
+   设置卡这个按钮表示"去更新页做", 不该承诺当场完成. */
+function updSetBtnLabel(){
+  var st = UPD.state || 'idle';
+  if(st === 'update' && UPD.remote) return '可用更新 v' + UPD.remote + ', 去更新页下载';
+  if(st === 'downloading'){
+    var p = updSnap();
+    var got = p ? (Number(p.got) || 0) : 0;
+    var tot = p ? Number(p.total) : -1;
+    if(tot > 0) return '下载中 ' + Math.min(100, Math.floor(got * 100 / tot)) + '%, 去更新页看进度';
+    return '下载中 ' + updFmtSize(got) + ', 去更新页看进度';
+  }
+  if(st === 'ready') return '已下好 v' + (UPD.readyTag || UPD.remote || '') + ', 去更新页安装';
+  if(st === 'checking') return '正在检测...';
+  if(st === 'latest') return '已是最新, 去更新页看看';
+  if(st === 'error') return '检测失败, 去更新页重试';
+  return '去更新页检查更新';
+}
+
+function updPaintSetCard(){
+  var sb = $('setUpdate');
+  if(sb){
+    var st = UPD.state || 'idle';
+    var busy = (st === 'checking' || st === 'downloading');
+    sb.textContent = updSetBtnLabel();
+    sb.disabled = busy;
+    sb.style.opacity = busy ? '.6' : '';
+  }
+  var tip = $('setUpdateTip');
+  if(tip) tip.textContent = updSetTip();
+  var pc = $('setUpdPill');
+  if(pc){
+    var ps2 = updPillState();
+    var txt = ps2.txt, cls = ps2.cls;
+    pc.textContent = txt;
+    pc.className = 'pill ' + cls;
+  }
+}
+
 /* 只重画按钮与说明, 不整体 paint(), 免得把页面滚动位置弹回去 */
 function updPaintCheck(){
+  /* 设置卡先刷: 它不等更新页那个容器 */
+  updPaintSetCard();
   var box = $('updCheckWrap');
   if(!box) return;
   /* 原生不在跑了就别把按钮挂在"下载中": 以原生快照为准.
@@ -5714,6 +6550,14 @@ function updPaintCheck(){
   var b = $('updCheck');
   if(b) b.onclick = updCheckTap;
 
+  /* 更新页标题那个胶囊跟着状态走, 与设置卡同一个函数出字, 两处永远一致 */
+  var up = $('updPill');
+  if(up){
+    var ps0 = updPillState();
+    up.textContent = ps0.txt;
+    up.className = 'pill ' + (ps0.cls || '');
+  }
+
   var meta = $('updCheckMeta');
   if(!meta) return;
   var sub = '';
@@ -5726,12 +6570,21 @@ function updPaintCheck(){
       : ('远端 v' + UPD.remote + ' 不比本地 v' + APP_VER + ' 新, 一个字节都没下.');
   }else if(st === 'update'){
     sub = '远端 v' + UPD.remote + ' 比本地 v' + APP_VER + ' 新. 再点一次按钮才下载, 下完交给系统安装器.';
+  }else if(st === 'ready'){
+    /* 这一行必须与按钮文字对得上: 按钮写着"点击安装", 就不能在这里说"重新检测". */
+    sub = 'v' + (UPD.readyTag || UPD.remote || '')
+      + ' 已经下好放在缓存里了. 点上面的按钮交给系统安装器, 不会重新下载;'
+      + ' 不想装就点下面那张卡的"删除安装包".';
   }else if(st === 'error'){
     sub = UPD.msg || '没读到远端版本号, 过一会儿再点一次.';
   }else{
-    sub = UPD.lastCheck ? ('上次检查 ' + ts2s(UPD.lastCheck)) : '还没查过';
+    /* 时间已经在卡片顶部的 kv('上次检查') 里了, 这里不再重复一遍;
+       这一行只说"现在能做什么". */
+    sub = UPD.lastCheck
+      ? '点上面的按钮重新检测一次, 会重新读远端版本号.'
+      : '还没查过, 点上面的按钮查一次.';
   }
-  meta.innerHTML = '<div class="sub" style="margin-top:6px">' + esc(sub) + '</div>';
+  meta.innerHTML = sub ? ('<div class="sub" style="margin-top:6px">' + esc(sub) + '</div>') : '';
   updPaintNotes();
 }
 
@@ -5755,6 +6608,17 @@ function updCheckTap(){
     doInstallReady(); return;
   }
   if(st === 'update' && UPD.remote){ doUpdate(UPD.remote); return; }
+  /* 兜底: 状态可能落到 idle/latest/error(页面重载, 后台回来, 竞速失败),
+     但 cache 里其实还有好包. 直接问一次原生, 有包就去装, 别只是再查一遍版本. */
+  try{
+    var c1 = JSON.parse(window.HzNative.updateCached() || 'null');
+    if(c1 && c1.ok && c1.file !== false && c1.tag){
+      UPD.state = 'ready'; UPD.readyTag = String(c1.tag);
+      updPaintCheck();
+      doInstallReady();
+      return;
+    }
+  }catch(e1){}
   checkUpdate();
 }
 
@@ -5765,7 +6629,12 @@ function doInstallReady(){
   window.__hzCb[k] = function(r){
     delete window.__hzCb[k];
     if(r && r.ok){ toast('已拉起安装器'); }
-    else if(r && r.needInstallPerm){ toast('先去打开“允许安装未知应用”, 回来再点一次'); }
+    else if(r && r.needInstallPerm){
+      /* 缺安装权限时直接跳系统授权页, 不再让用户自己去找设置项. */
+      toast('需要"允许安装未知应用", 已为你打开授权页');
+      try{ window.HzNative.installPerm('permir'); }
+      catch(e){ log('打不开安装授权页: ' + e.message, 'w'); }
+    }
     else { toast('安装没起来, 稍后再试'); }
     updPaintCheck();
   };
@@ -5789,6 +6658,7 @@ function updSyncCached(){
       UPD.state = 'ready'; UPD.readyTag = String(c2.tag);
       if(!UPD.remote || cmpVer(UPD.remote, c2.tag) !== 0) UPD.remote = c2.tag;
       updPaintCheck(); updPaintProg();
+      if(CUR === 'settings') paint();
       return;
     }else{
       UPD.state = (UPD.remote && cmpVer(UPD.remote, APP_VER) > 0) ? 'update' : 'latest';
@@ -5830,7 +6700,20 @@ function updSyncCached(){
   updPaintCheck(); updPaintProg();
 }
 
-function checkUpdate(){
+/* 进更新页自动检测一次的节流壳: 60 秒内不重复打请求, 下载中/已下好/检查中都不碰 */
+var UPD_AUTO_AT = 0;
+function updAutoCheckOnce(){
+  var st = UPD.state || 'idle';
+  if(st === 'checking' || st === 'downloading' || st === 'ready') return;
+  if(UPD_AUTO_AT && (Date.now() - UPD_AUTO_AT) < 60000) return;
+  UPD_AUTO_AT = Date.now();
+  log('进更新页: 自动检测一次远端版本', 's');
+  checkUpdate(true);
+}
+
+function checkUpdate(silent){
+  /* 换了检测动作, 上一次 rescan 的结论就不作数了, 免得两条结论互相打脸. */
+  UPD.rescanMsg = '';
   if(!REPO){
     UPD.state = 'error';
     UPD.msg = '还没配仓库地址, 更新链路是空的.';
@@ -5874,7 +6757,10 @@ function checkUpdate(){
       log('发现新版 v' + tag + ', 等用户点按钮再下载');
       UPD.state = 'update';
       updPaintCheck();
-      toast('有新版本 v' + tag + ', 点按钮下载');
+      /* 自动检测(进页面触发)不弹 toast: 用户没点任何东西就被告知"有新版本",
+         只会莫名其妙. 页面上的胶囊与按钮已经把结论写清楚了.
+         手点检测才弹, 作为动作反馈. */
+      if(!silent) toast('有新版本 v' + tag + ', 点按钮下载');
     }
     if(tag){ afterApi(); return; }
     log('镜像都失败, 回落到 GitHub API', 'w');
@@ -5892,6 +6778,7 @@ function checkUpdate(){
 
 /* 只有在版本比对确认"确实有新版本" 之后才会走到这里.
    一律立刻四路并发下: 不探测, 不轮询轮试, 第一毫秒就把按钮和进度卡切成下载中. */
+var U_ORDER_TOP = '';
 function doUpdate(tag){
   if(!HASNATIVE){ toast('网页版不能自己装包'); return; }
   updRebuild();
@@ -5930,12 +6817,12 @@ function doUpdate(tag){
     log('下载结果: ' + JSON.stringify(x), x && x.ok ? 's' : 'w');
     if(x && x.canceled){ UPD.state = 'update'; updPaintCheck(); return; }
     if(x && x.needInstallPerm){
-      /* 包已经落盘, 只差授权. 留着状态不动, 等用户回来点安装. */
+      /* 包已经落盘, 只差授权. 直接跳授权页, 不让用户自己找开关. */
       UPD.state = 'ready'; UPD.readyTag = tag;
       updPaintCheck();
-      toast('包已下好, 先去打开"允许安装未知应用"');
       try{ window.HzNative.installPerm('permi'); }
       catch(e){ log('打不开安装授权页: ' + e.message, 'w'); }
+      toast('包已下好, 已打开授权页, 打开开关后回来点安装');
       return;
     }
     if(x && x.ok){
@@ -6035,22 +6922,174 @@ function updPaintProg(){
   if(phase === 'fail' && p.err) h += '<div class="sub" style="color:var(--danger)">' + esc(p.err) + '</div>';
   if(phase === 'idle' && p.err) h += '<div class="sub">上一次: ' + esc(p.err) + '</div>';
 
-  /* ready 态: 下载卡内直接给"安装"按钮(用户要求: 下载好了检测到了, 下载下面要有安装按钮) */
-  if(UPD.state === 'ready' && UPD.readyTag){
-    h += '<div class="row" style="margin-top:9px">'
-      + '<button class="btn-c" id="updInstallBtn">安装已下好的 v' + esc(UPD.readyTag) + '</button></div>';
+  /* 磁盘上有没有包, 不只看 UPD.state: 状态机偶尔会落后于文件(刚装完/记账被清). */
+  var pkgTag = '';
+  try{
+    var cc = (HASNATIVE && window.HzNative.updateCached)
+      ? JSON.parse(window.HzNative.updateCached() || 'null') : null;
+    if(cc && cc.ok && cc.file !== false && cc.tag) pkgTag = String(cc.tag);
+  }catch(e9){ pkgTag = ''; }
+  log('下载卡渲染: state=' + (UPD.state || 'null') + ' readyTag=' + (UPD.readyTag || '无')
+    + ' pkgTag=' + (pkgTag || '无') + ' phase=' + phase, 'w');
+
+  /* 用户要求: 安装与删除两个按钮永远存在, 没包时点它们弹窗说清楚, 不要按钮凭空消失.
+     有包时也不再判断 UPD.state -- 只认磁盘事实, 免得状态机落后就找不到入口. */
+  var instTag = (UPD.state === 'ready' && UPD.readyTag) ? String(UPD.readyTag) : (pkgTag || '');
+  h += '<div class="row" style="margin-top:9px">';
+  h += '<button class="btn-c' + (instTag ? '' : ' btn-f') + '" id="updInstallBtn">'
+     + (instTag ? ('安装已下好的 v' + esc(instTag)) : '安装已下好的包') + '</button>';
+  h += '<button class="btn-r btn-f" id="updDelPkgBtn">删除安装包</button>';
+  h += '</div>';
+  if(!instTag){
+    h += '<div class="sub">现在缓存里没有安装包. 点上面两个按钮都会提示, 不会静默失败.</div>';
+  }else if(UPD.state !== 'ready'){
+    h += '<div class="sub">缓存里有 v' + esc(instTag) + ' 的安装包, 不想留就点上面的删除.</div>';
   }
 
+  /* 重新检测下载目录: 用户要求放在"打开下载目录"下面, 与下载/安装同区 */
   h += '<div class="row" style="margin-top:9px">'
     + '<button class="btn-b btn-f" id="updDir">打开下载目录</button>'
     + '<button class="btn-f" id="updRepo">打开项目仓库</button></div>';
   h += '<div class="sub">安装包下到应用缓存目录, 点"打开下载目录"会在公共"下载"里放一份并跳过去, '
     + '找不到时退回到系统的下载界面.</div>';
+  h += '<div class="row" style="margin-top:9px"><button class="btn-b btn-f" id="updRescan">重新检测下载目录</button></div>';
+  h += '<div class="sub" id="updRescanMsg">' + esc(UPD.rescanMsg
+    ? UPD.rescanMsg
+    : '扫公共下载目录与应用缓存, 找有没有比当前版本新的安装包; 也会清掉已经失效的"已下好"记账, 让你可以重新下载.')
+    + '</div>';
 
   box.innerHTML = h;
   if($('updDir')) $('updDir').onclick = openDownloadDir;
   if($('updRepo')) $('updRepo').onclick = function(){ openUrl(REPO_URL); };
-  if($('updInstallBtn')) $('updInstallBtn').onclick = updCheckTap;   /* 走同一复核+安装链路 */
+  /* 安装: 没包时不能静默; 有包时仍走同一复核链路 */
+  if($('updInstallBtn')) $('updInstallBtn').onclick = function(){
+    var t = '';
+    try{
+      var c2 = (HASNATIVE && window.HzNative.updateCached)
+        ? JSON.parse(window.HzNative.updateCached() || 'null') : null;
+      if(c2 && c2.ok && c2.file !== false && c2.tag) t = String(c2.tag);
+    }catch(eI){ t = ''; }
+    if(!t && !(UPD.state === 'ready' && UPD.readyTag)){
+      alertBox('现在没有可安装的包',
+        '缓存里没有下好的安装包, 装不了.<br>先点上面的"检查更新"把包下下来.',
+        [{ label: '去检查更新', cls: 'btn-b', fn: function(){ updCheckTap(); } },
+         { label: '知道了' }]);
+      return;
+    }
+    updCheckTap();
+  };
+  if($('updDelPkgBtn')) $('updDelPkgBtn').onclick = updDelPkg;
+  if($('updRescan')) $('updRescan').onclick = updRescanRun;
+}
+
+/* 删除已下好的安装包: 包+记账一起清(原生 updateClear), 页面回 idle, 再跑一遍校态闭环
+   确认"删干净了"(updateCached 双保险). 用户要求: 删除后刷新必须通畅. */
+/* 重新检测下载目录: 真去扫公共下载目录, 由原生 RescanTask15 落盘记账,
+   再按 updateCached / updateRestore 的实测结果出结论. 不整页 paint(),
+   否则刚写好的提示会被重建冲掉. */
+function updRescanRun(){
+  if(UPD.rescanBusy) return;
+  UPD.rescanBusy = true;
+  var btn = $('updRescan');
+  if(btn){ btn.disabled = true; btn.style.opacity = .6; }
+  UPD.rescanMsg = '正在比对远端最新版本...';
+  var msg = $('updRescanMsg');
+  if(msg) msg.textContent = UPD.rescanMsg;
+  if(!HASNATIVE || !window.HzNative.updateRescan){
+    toast('这个包没有该能力');
+    UPD.rescanBusy = false;
+    if(btn){ btn.disabled = false; btn.style.opacity = ''; }
+    return;
+  }
+  function finish(text, foundIt, tag){
+    UPD.rescanBusy = false;
+    var b2 = $('updRescan');
+    if(b2){ b2.disabled = false; b2.style.opacity = ''; }
+    UPD.rescanMsg = text || '检测完成';
+    var m2 = $('updRescanMsg');
+    if(m2){ m2.textContent = UPD.rescanMsg; }
+    try{ updSyncCached(); }catch(e3){}
+    updPaintCheck();
+    updPaintProg();
+    if(foundIt && tag) toast('找到了 v' + tag + ' 的安装包');
+  }
+  function fire(remoteVer){
+    var rid = 'rs' + (++cbSeq);
+    var settled = false;
+    function once(payload){
+      if(settled) return;
+      settled = true;
+      try{ delete window.__hzCb[rid]; }catch(e0){}
+      var found = !!(payload && payload.found);
+      var c = null;
+      try{ c = JSON.parse(window.HzNative.updateCached() || 'null'); }catch(e1){ c = null; }
+      if(found && c && c.ok && c.file !== false && c.tag){
+        UPD.state = 'ready'; UPD.readyTag = String(c.tag);
+        UPD.remote = String(payload && payload.remote ? payload.remote : c.tag);
+      } else if(!found && UPD.state === 'ready'){
+        UPD.state = 'latest'; UPD.readyTag = '';
+      }
+      var text = (payload && payload.msg) ? String(payload.msg) : '检测完成';
+      finish(text, found, (c && c.tag) || String(payload && payload.remote ? payload.remote : ''));
+    }
+    window.__hzCb[rid] = function(r){ once(r); };
+    try{ window.HzNative.updateRescan(rid, remoteVer || ''); }
+    catch(e4){
+      settled = true;
+      try{ delete window.__hzCb[rid]; }catch(e5){}
+      finish('检测失败: ' + e4.message, false, '');
+      return;
+    }
+    /* 原生回调走 deliver, 理论上一定回来; 万一被吞(进程重建等), 12 秒后按缓存自检兜底. */
+    setTimeout(function(){
+      if(settled) return;
+      var c2 = null;
+      try{ c2 = JSON.parse(window.HzNative.updateCached() || 'null'); }catch(e6){ c2 = null; }
+      var hasPkg = !!(c2 && c2.ok && c2.file !== false && c2.tag);
+      once({ found: hasPkg, remote: '',
+             msg: hasPkg ? ('缓存里有 v' + c2.tag + ' 的安装包') : '检测完成: 缓存里没有安装包, 下载目录也没有更新的包' });
+    }, 12000);
+  }
+  if(UPD.remote){ fire(String(UPD.remote)); return; }
+  /* 远端最新版本还不知道: 先查一次再比对. 查不到就按本地判断, 并在文案里说明. */
+  fetchRemoteVer(function(tag, err){
+    var rv = tag ? String(tag) : '';
+    if(rv){ UPD.remote = rv; }
+    else if(msg){ msg.textContent = '远端版本没读到(' + String(err || '').slice(0, 40) + '), 只按本地判断...'; }
+    fire(rv);
+  });
+}
+
+function updDelPkg(){
+  log('删除安装包: 按钮被点击, 弹确认', 'w');
+  confirmBox('删除安装包',
+    '把已下好的安装包和它的记账一起删掉? 删完按钮会回到"检查更新", 想装再重新下载.',
+    '删除', function(){
+      /* 原生 updateClear 只收显示不删文件(名字误导); 真删走 updateDelPkg 桥. */
+      try{
+        if(HASNATIVE && window.HzNative.updateDelPkg) window.HzNative.updateDelPkg();
+        else if(HASNATIVE && window.HzNative.updateClear) window.HzNative.updateClear();
+      }catch(eC){
+        log('删除桥异常: ' + eC.message, 'e');
+      }
+      UPD.state = 'idle';
+      UPD.readyTag = '';
+      updPaintCheck();
+      updPaintProg();          /* 下载卡也要重绘: 不然还挂着上次的 100% 进度 */
+      if(CUR === 'settings') paint();
+      toast('安装包已删除');
+      log('已删除下载目录里的安装包与记账, 状态复位', 's');
+      /* 删除后校态闭环: 确认原生侧确实干净 */
+      try{
+        var c = JSON.parse(window.HzNative.updateCached() || 'null');
+        if(c && (c.ok || c.file === true)){
+          log('删除后 updateCached 仍报有包: ' + JSON.stringify(c).slice(0, 120), 'e');
+          toast('删除可能没生效, 再点一次试试');
+        }else{
+          log('删除后校态: 缓存干净', 's');
+        }
+      }catch(eV){}
+    });
 }
 
 function updPollStart(){
@@ -6061,8 +7100,44 @@ function updPollStart(){
     var p = updSnap();
     /* 按钮文字也由原生快照驱动, 页面不自己猜状态 */
     if(p){
-      if(p.running){
-        if(UPD.state !== 'downloading'){ UPD.state = 'downloading'; updPaintCheck(); }
+      /* 字节已经下满(total>0 且 got>=total)时绝不能再按回 downloading:
+         旧版原生 InstallTask 拉起安装器后没清 running, updateProgress() 会一直
+         回 running=true, 状态机就被永远锁在"下载中 100%", ready 分支进不去,
+         下载卡的"安装/删除安装包"两个按钮永不渲染. 这里按磁盘实际结果自愈. */
+      var __full = (Number(p.total) > 0 && Number(p.got) >= Number(p.total));
+      if(p.running && __full){
+        var cF = null;
+        try{ cF = JSON.parse(window.HzNative.updateCached() || 'null'); }catch(eF){ cF = null; }
+        if(cF && cF.ok && cF.file !== false && cF.tag && cmpVer(cF.tag, APP_VER) > 0){
+          if(UPD.state !== 'ready' || UPD.readyTag !== String(cF.tag)){
+            UPD.state = 'ready'; UPD.readyTag = String(cF.tag);
+            if(!UPD.remote || cmpVer(UPD.remote, cF.tag) !== 0) UPD.remote = cF.tag;
+            log('轮询: 字节已满且缓存有包(v' + cF.tag + '), 原生 running 未清也翻 ready', 's');
+            if(CUR === 'settings') paint();
+            else updPaintCheck();
+          }
+        }
+      }else if(p.running){
+        /* running=true 但字节没动(total<=0 或 got<=0)不一定是真在下:
+           原生 InstallTask 拉起安装器后漏清 running, 或下载线程被系统掐掉,
+           state.json 里就会留下 running=true / got=0. 旧逻辑无条件按回
+           downloading, 用户看到的正是"下载中 0 B, 去更新页看进度"且点不开.
+           这里先问磁盘: 有包就 ready, 没包就按远端结果回 update/latest. */
+        var cR = null;
+        try{ cR = JSON.parse(window.HzNative.updateCached() || 'null'); }catch(eR){ cR = null; }
+        if(cR && cR.ok && cR.file !== false && cR.tag && cmpVer(cR.tag, APP_VER) > 0){
+          if(UPD.state !== 'ready' || UPD.readyTag !== String(cR.tag)){
+            UPD.state = 'ready'; UPD.readyTag = String(cR.tag);
+            if(!UPD.remote || cmpVer(UPD.remote, cR.tag) !== 0) UPD.remote = cR.tag;
+            log('轮询: running 但字节未动, 磁盘有包 v' + cR.tag + ', 翻 ready', 'w');
+            updPaintCheck();
+          }
+        }else if(UPD.state === 'downloading' && !(Number(p.got) > 0)){
+          UPD.state = (UPD.remote && cmpVer(UPD.remote, APP_VER) > 0) ? 'update' : 'latest';
+          UPD.readyTag = '';
+          log('轮询: running=true 但 got=0 且无包, 不再卡在下载中', 'w');
+          updPaintCheck();
+        }else if(UPD.state !== 'downloading'){ UPD.state = 'downloading'; updPaintCheck(); }
       }else if(p.phase === 'install'){
         if(UPD.state !== 'ready'){
           UPD.state = 'ready';
@@ -6114,7 +7189,11 @@ function updResync(){
     if(tg && UPD.state !== 'ready'){
       UPD.state = 'ready'; UPD.readyTag = tg;
       if(!UPD.remote || cmpVer(UPD.remote, tg) !== 0) UPD.remote = tg;
+      log('resync: 原生 phase=install, 页面转 ready(v' + tg + '), 下载卡将重绘', 's');
       updPaintCheck();
+      /* 状态进 ready 必须整页重绘: 下载卡的"安装/删除安装包"按钮是 paint 时才渲染的,
+         只刷检查按钮会让下载卡停在旧 DOM(真实踩过: root 造 ready 后下载卡无按钮). */
+      if(CUR === 'settings') paint();
     }
     updPaintProg();
     return;
@@ -6169,45 +7248,31 @@ function openDownloadDir(){
 function pageUpdate(host){
   updLoadDev(); updRebuild();
   /* 仓库与发行版: 更新走 Release 资产, 用户要能自己去看改了什么. */
-  if(REPO){
-    var rel = REPO_URL + '/releases';
-    host.insertAdjacentHTML('afterbegin',
-      '<div class="card"><h2>仓库</h2>'
-      + kvH('源码', '<a href="#" data-openurl="' + esc(REPO_URL) + '" '
-           + 'style="color:var(--accent);word-break:break-all">' + esc(REPO_URL) + '</a>')
-      + kvH('发行版', '<a href="#" data-openurl="' + esc(rel) + '" '
-           + 'style="color:var(--accent);word-break:break-all">' + esc(rel) + '</a>')
-      + kv('许可', REPO_LIC + '(不可商用)')
-      + '<div class="sub">更新包从发行版附件下载; 每个架构一个包, 页面自动挑本机那个.</div>'
-      + '</div>');
-    host.querySelectorAll('[data-openurl]').forEach(function(a){
-      a.onclick = function(e){ e.preventDefault(); openUrl(a.getAttribute('data-openurl')); };
-    });
-  }
   var d = UPD_DEV || {};
   var h = '';
-  h += '<div class="card"><h2>本机 <span class="pill">按机型选包</span></h2>';
-  h += kv('机型', (d.brand ? (d.brand + ' ') : '') + (d.model || '-'));
-  h += kv('系统', 'Android ' + (d.release || '?') + (d.sdk ? (' (SDK ' + d.sdk + ')') : ''));
-  h += kv('CPU', (d.abi || '未知') + (d.abis && d.abis !== d.abi ? (' (全部 ' + d.abis + ')') : ''));
-  h += kv('将下载', updApkName() || 'hz-water.apk (通用)');
-  if(d.emulator) h += '<div class="sub" style="color:var(--warn,#d29922)">检测到这是模拟器, 装出来的包可能和真机表现不一致.</div>';
-  h += '<div class="sub">有专门为你这个 CPU 架构打的包就优先下它; 没有就下通用包, 通用包在所有架构上都能跑.</div>';
-  h += '</div>';
 
-  /* 按钮文字由 updPaintCheck() 按 UPD.state 渲染, 这里只留容器 */
-  h += '<div class="card"><h2>版本 ' + badge(APP_VER) + '</h2>';
+  /* 顺序按用户实际用得到的东西排: 检测 -> 下载/安装/删除 -> 更新源 -> 本机 -> 说明 -> 仓库.
+     老版把仓库和本机卡塞在最前, 检测按钮被挤到第二屏, 用户找不到. */
+  /* 版本卡只放"结论 + 按钮": 当前版本, 上次检查, 按钮, 一行状态.
+     更新日志与长说明挪到下载卡之后 -- 它们会把下载卡顶下去一屏,
+     而用户来这里最想看的恰恰是进度和安装/删除按钮. */
+  h += '<div class="card"><h2>版本 <span class="pill" id="updPill">'
+    + esc(updPillState().txt) + '</span></h2>';
   h += kv('当前版本', APP_VER);
+  h += kv('上次检查', UPD.lastCheck ? ts2s(UPD.lastCheck) : '没查过');
   h += '<div id="updCheckWrap" style="margin-top:9px"></div>';
   h += '<div id="updCheckMeta"></div>';
-  h += '<div id="updNotes"></div>';
-  h += '<div class="sub">先读远端版本号比对: 已经是最新就到此为止, 一个字节都不下. '
-    + '确认有新版本才去探测镜像并下载, 下完交给系统安装器.</div>';
   h += '</div>';
 
   h += '<div class="card"><h2>下载 <span class="pill">实时进度</span></h2>'
     + '<div id="updProg"></div>'
     + '</div>';
+
+  h += '<div class="card"><h2>版本说明 <span class="pill">改动与规则</span></h2>';
+  h += '<div id="updNotes"></div>';
+  h += '<div class="sub">进这个页面会自动检测一次; 已经是最新就到此为止, 一个字节都不下. '
+    + '确认有新版本才去探测镜像并下载, 下完交给系统安装器.</div>';
+  h += '</div>';
 
   h += '<div class="card"><h2>更新源顺序 <span class="pill">镜像优先</span></h2>';
   UPDATE_SOURCES.forEach(function(src, i){
@@ -6225,10 +7290,16 @@ function pageUpdate(host){
   });
   h += '<div class="sub">镜像源走的是 GitHub 加速代理, 直连失败时才回落到 github.com 与 raw.githubusercontent.com. '
     + '源地址写在页面里, 想换直接改 UPDATE_SOURCES.</div>';
-  h += '<div class="row" style="margin-top:9px">'
-    + '<button class="btn-f" id="updRescan">重新检测下载目录</button></div>';
-  h += '<div class="sub" id="updRescanMsg">扫公共下载目录与应用缓存, 找有没有比当前版本新的安装包; '
-    + '也会清掉已经失效的"已下好"记账, 让你可以重新下载.</div>';
+  h += '</div>';
+
+  /* 本机信息属于"装不上时才看"的排查内容, 放到更新源之后 */
+  h += '<div class="card"><h2>本机 <span class="pill">按机型选包</span></h2>';
+  h += kv('机型', (d.brand ? (d.brand + ' ') : '') + (d.model || '-'));
+  h += kv('系统', 'Android ' + (d.release || '?') + (d.sdk ? (' (SDK ' + d.sdk + ')') : ''));
+  h += kv('CPU', (d.abi || '未知') + (d.abis && d.abis !== d.abi ? (' (全部 ' + d.abis + ')') : ''));
+  h += kv('将下载', updApkName() || 'hz-water.apk (通用)');
+  if(d.emulator) h += '<div class="sub" style="color:var(--warn,#d29922)">检测到这是模拟器, 装出来的包可能和真机表现不一致.</div>';
+  h += '<div class="sub">有专门为你这个 CPU 架构打的包就优先下它; 没有就下通用包, 通用包在所有架构上都能跑.</div>';
   h += '</div>';
 
   h += '<div class="card"><h2>说明</h2><div class="tos">'
@@ -6236,6 +7307,19 @@ function pageUpdate(host){
     + '通过了才会交给系统安装器.</p>'
     + '<p>如果你的手机禁止了"安装未知应用", 会在这里提示一次并给一个直达系统开关的按钮.</p>'
     + '</div></div>';
+
+  /* 仓库卡放最底: 源码/发行版链接是"还想自己去看"才点的, 不该占第一屏 */
+  if(REPO){
+    var rel = REPO_URL + '/releases';
+    h += '<div class="card"><h2>仓库</h2>'
+      + kvH('源码', '<a href="#" data-openurl="' + esc(REPO_URL) + '" '
+           + 'style="color:var(--accent);word-break:break-all">' + esc(REPO_URL) + '</a>')
+      + kvH('发行版', '<a href="#" data-openurl="' + esc(rel) + '" '
+           + 'style="color:var(--accent);word-break:break-all">' + esc(rel) + '</a>')
+      + kv('许可', REPO_LIC + '(不可商用)')
+      + '<div class="sub">更新包从发行版附件下载; 每个架构一个包, 页面自动挑本机那个.</div>'
+      + '</div>';
+  }
 
   host.innerHTML = h;
   updPaintProg();
@@ -6250,48 +7334,13 @@ function pageUpdate(host){
     }
   }catch(e){}
   updPaintCheck();
-  var rs = $('updRescan');
-  if(rs) rs.onclick = function(){
-    rs.disabled = true; rs.style.opacity = .6;
-    var msg = $('updRescanMsg');
-    if(msg) msg.textContent = '正在扫描下载目录与应用缓存...';
-    /* 不走 deliver 回调: 轮询原生状态文件(updateRestore/updateCached),
-       RescanTask15 完成后 state.json 与记账都会变, 最多等 40 轮(约 32s). */
-    var tries = 0;
-    var timer = setInterval(function(){
-      tries++;
-      var c = null, snap = null;
-      try{ c = JSON.parse(window.HzNative.updateCached() || 'null'); }catch(e1){ c = null; }
-      try{ snap = JSON.parse(window.HzNative.updateRestore() || 'null'); }catch(e2){ snap = null; }
-      var idle = snap && (snap.phase === 'idle' || !snap.running);
-      var msgTxt = '';
-      if(c && c.ok && c.file !== false && c.tag && cmpVer(c.tag, APP_VER) > 0){
-        /* 缓存里真有新版包: ready 态 + 检查按钮变"已下好 点击安装" */
-        UPD.state = 'ready'; UPD.readyTag = String(c.tag);
-        if(!UPD.remote || cmpVer(UPD.remote, c.tag) !== 0) UPD.remote = c.tag;
-        msgTxt = '缓存里有 v' + c.tag + ' 的安装包, 点上方按钮即可安装';
-      } else if(tries >= 4 && idle){
-        if(UPD.state === 'ready'){ UPD.state = 'latest'; UPD.readyTag = ''; }
-        msgTxt = '下载目录没有比 v' + APP_VER + ' 新的安装包, 已清掉失效记账, 可以重新下载';
-      }
-      if(msgTxt || tries > 40){
-        clearInterval(timer);
-        try{ updSyncCached(); }catch(e3){}
-        updPaintCheck();
-        paint();
-        var m2 = $('updRescanMsg');
-        if(m2){ m2.textContent = msgTxt || '检测完成'; }
-        if(msgTxt && c && c.ok && c.file !== false){ toast('找到了 v' + c.tag + ' 的安装包'); }
-        rs.disabled = false; rs.style.opacity = '';
-      }
-    }, 800);
-    try{
-      if(HASNATIVE && window.HzNative.updateRescan){ window.HzNative.updateRescan('rs_fire'); }
-      else { toast('这个包没有该能力'); clearInterval(timer); rs.disabled = false; rs.style.opacity = ''; }
-    }catch(e4){
-      toast('检测失败'); clearInterval(timer); rs.disabled = false; rs.style.opacity = '';
-    }
-  };
+  /* 进更新页自动检测一次. 老版进来只显示"上次检查 xx", 必须手点按钮才读版本号,
+     用户实测会以为检测功能根本没生效. 有包/正在下/正在检查时不打扰. */
+  updAutoCheckOnce();
+  /* 重检按钮已搬进下载卡, 由 updPaintProg 绑 updRescanRun, 这里不再绑. */
+  host.querySelectorAll('[data-openurl]').forEach(function(a){
+    a.onclick = function(e){ e.preventDefault(); openUrl(a.getAttribute('data-openurl')); };
+  });
   host.querySelectorAll('[data-updcopy]').forEach(function(el){
     el.onclick = function(){
       var v = el.getAttribute('data-updcopy') || '';
@@ -6662,7 +7711,7 @@ function fmPickDev(d){
     log('预约模式: ' + (d.deviceTypeName || '') + ' ' + (d.statusName || ''), 's');
     toast('预约 ' + (d.deviceTypeName || '') + ', 选程序下单');
     popPage();
-    paint();
+    pushPage({ title:'订单', sub:(U.result.storeName || 'U净洗衣'), render:pageUOrder });
     return;
   }
   U.rawQr = did; /* 没有扫码串时用 deviceId 兜底, scanWasherCode 也认 */
@@ -6686,7 +7735,7 @@ function fmPickDev(d){
   uLoadProgram();
   toast('已选 ' + (U.result.deviceName || did));
   popPage();
-  paint();
+  pushPage({ title:'订单', sub:(U.result.storeName || 'U净洗衣'), render:pageUOrder });
 }
 
 function fmDevFree(d){
@@ -7127,6 +8176,24 @@ function pageAlarm(host){
     + '订单在跑的时候不用手动点, 页面会按账单里的完成时刻自动建一次, 同一单不会重复建.</div>';
   h += '</div>';
 
+  /* 假推送: 不依赖真实订单, 把洗衣完成那条链路完整演练一遍.
+     原生侧只看 pushDemo 这一个入口(PushDemo.java), 响铃/全屏/通知全部复用真闹钟的实现,
+     所以这里看到什么效果, 真订单到点就是什么效果. 不登记系统时钟, 不写提醒列表. */
+  if(HASNATIVE){
+    h += '<div class="card"><h2>试用推送 <span class="pill">演练, 不是真订单</span></h2>';
+    h += '<div class="sub">走的是真闹钟同一条链路: 前台服务响铃 + 震动 + 全屏界面 + 状态栏通知. '
+      + '只是触发源换成手点, 不登记系统时钟, 也不会留在"已设的提醒"里. '
+      + '现在就有通知权限的话, 立刻能看到效果; 想试锁屏效果就用 10 秒后那条.</div>';
+    h += '<div class="row" style="margin-top:9px">'
+      + '<button class="btn-p btn-f" id="pdNow">立刻推一条</button>'
+      + '<button class="btn-b btn-f" id="pdSoon">10 秒后推一条</button></div>';
+    h += '<div class="row" style="margin-top:9px">'
+      + '<button class="btn-f" id="pdMode">方式: 通知 + 响铃 + 全屏</button></div>';
+    h += '<div class="sub">这个按钮只切换上一条用哪种方式: 切到"只发通知"就只听一声提示, '
+      + '不会响铃也不会占满屏幕.</div>';
+    h += '</div>';
+  }
+
   /* 本机时钟 App 探测: 各家系统时钟不一样, 这里照实列出这台机器能接 SET_ALARM 的 App,
      让"这条通道到底通不通"有据可查, 不用靠猜. */
   var clockApps = null;
@@ -7249,6 +8316,13 @@ function pageAlarm(host){
     var at = Date.now() + 10000;
     alSetAt(at, '测试提醒', '这是 10 秒后的测试, 说明通道是通的');
   };
+  if($('pdMode')) $('pdMode').onclick = function(){
+    PD_MODE = (PD_MODE === 1) ? 0 : 1;
+    $('pdMode').textContent = (PD_MODE === 1) ? '方式: 通知 + 响铃 + 全屏' : '方式: 只发通知';
+    toast(PD_MODE === 1 ? '会响铃并弹全屏界面' : '只发一条通知');
+  };
+  if($('pdNow')) $('pdNow').onclick = function(){ pushDemo(0); };
+  if($('pdSoon')) $('pdSoon').onclick = function(){ pushDemo(10); };
   if($('alExact')) $('alExact').onclick = function(){
     if(HASNATIVE && window.HzNative.exactAlarmPerm){
       try{ window.HzNative.exactAlarmPerm('ax' + (++cbSeq)); }catch(e){ toast('打不开设置页'); }
@@ -7267,11 +8341,17 @@ function pageAlarm(host){
   Array.prototype.forEach.call(host.querySelectorAll('[data-al]'), function(b){
     b.onclick = function(){
       var a = AL.list[Number(b.getAttribute('data-al'))];
-      alDel(a.tag); paint();
-      if(HASNATIVE && window.HzNative.cancelAlarm){
-        try{ window.HzNative.cancelAlarm('ac' + (++cbSeq), a.tag); }catch(e){}
-      }
-      toast('已删除');
+      if(!a) return;
+      /* 红按钮必须二次确认: 提醒删了就得重新配, 没有撤销. */
+      confirmBox('删除提醒',
+        '要删掉 ' + esc(a.title || '洗衣完成') + ' 这条提醒吗?<br>' + esc(new Date(a.at).toLocaleString()) + ' · 删掉之后到点不会再响, 想用得重新加.',
+        '删除', function(){
+          alDel(a.tag); paint();
+          if(HASNATIVE && window.HzNative.cancelAlarm){
+            try{ window.HzNative.cancelAlarm('ac' + (++cbSeq), a.tag); }catch(e){}
+          }
+          toast('已删除');
+        });
     };
   });
 }
@@ -7441,91 +8521,53 @@ function alSetAt(at, title, text){
   alSetBoth(at, title, text, tag, false);
 }
 
+/* 假推送的当前方式: 1 = 通知 + 响铃 + 全屏(更能看出效果), 0 = 只发通知.
+   不持久化: 每次进页面都回到"完整演练"这一档, 免得上次切成只发通知之后
+   再点一次以为坏了. */
+var PD_MODE = 1;
+
+/**
+ * 走一遍假推送.
+ *
+ * 延迟由原生 Handler 排队, 不用页面 setTimeout -- 页面切后台或锁屏后
+ * WebView 的定时器会被系统节流到分钟级, 那样"10 秒后"根本不准, 演练就失去意义.
+ *
+ * 提醒词带"试用"两字: 用户过两天看到同样字样, 得能分辨这不是洗衣机真的洗完了.
+ */
+function pushDemo(delaySec){
+  if(!HASNATIVE || !window.HzNative.pushDemo){
+    toast('这个包没有推送演练入口');
+    return;
+  }
+  var rid = 'pd' + (++cbSeq);
+  var title = '洗衣完成提醒 · 试用';
+  var text = '这是试用推送, 不是你的订单. 收到即说明通知通道是通的.';
+  window.__hzCb[rid] = function(r){
+    delete window.__hzCb[rid];
+    if(r && r.ok){
+      toast(delaySec > 0 ? ('已排队, ' + delaySec + ' 秒后推') : '已发出');
+      log('试用推送: mode=' + PD_MODE + ' delay=' + delaySec + 's', 's');
+    }else{
+      toast('推送演练没发出去: ' + ((r && r.err) || '没响应'));
+    }
+  };
+  try{ window.HzNative.pushDemo(rid, PD_MODE, delaySec || 0, title, text, 'demo_' + Date.now()); }
+  catch(e){ toast('调用失败: ' + (e && e.message || e)); }
+}
+
 
 /* ============================================================
-   6.9 洗衣页 (v6 重构)
-   结构: 账号 -> 当前订单(实时) -> 找附近机器 -> 扫码 -> 选机器 -> 下单 -> 历史订单
-   历史订单单独一页, 不挤在主页
+   当前订单卡: 洗衣页与订单页共用的唯一一份实现.
+
+   为什么抽出来(用户 m05873-2): 两页都要实时展示订单进度, 包括未完成待支付的
+   单, 一式两份, 不能各画一套 -- 各画一套必然漂移, 一边改了另一边忘改, 用户
+   就会在洗衣页看到旧逻辑, 在订单页看到新逻辑.
+   所以判据(cards 构建)与渲染(单卡 HTML)都只有这里一份.
+
+   id 说明: #uWashRemain / #uCd_<订单号> 是固定 id, 但 paint() 每次只重建当前页,
+   两页不会同时在 DOM 里, 所以 getElementById 永远只命中当前页那一份.
    ============================================================ */
-function pageLaundry(host){
-  var signed = !!U.token;
-  var saved = (ACC.laundry || []).length;
-  var h = '';
-
-  /* ===== 1. 账号: 单独放最上面, 与取水页一致 ===== */
-  h += '<div class="card"><h2>U净账号 '
-    + badge(signed?(U.phone||'已登录'):'未登录', signed?'on':'')+'</h2>';
-  if(signed){
-    h += '<div class="row"><button class="btn-f" id="uSwitch">切换账号'+(saved>1?(' ('+saved+')'):'')+'</button>'
-      + '<button class="btn-r" id="uOut">退出</button></div>';
-    h += '<div class="sub">只用于洗衣, 与胖乖完全独立, 余额与积分不互通.</div>';
-  }else{
-    if(saved){
-      h += '<div class="row"><button class="btn-b btn-f" id="uSaved">已保存 '+saved+' 个账号, 点这里直接进</button></div>';
-    }
-    h += '<div class="row"><input id="uPhone" placeholder="手机号" inputmode="numeric"></div>';
-    h += '<div class="row"><input id="uCode" placeholder="短信验证码" inputmode="numeric">'
-      + '<button class="btn-w" id="uSend">发验证码</button></div>';
-    h += '<div class="row"><button class="btn-p btn-f" id="uIn">登录</button></div>';
-    h += '<div class="sub">U净 账号体系独立, 需用你自己的手机号收码.</div>';
-  }
-  h += '</div>';
-
-
-  /* ===== 2. 扫码: 账号下面第一个, 最主要的操作入口 ===== */
-  var U_HAS_ORD0 = (UO.items || []).length > 0 || !!U.orderId;
-  h += '<div class="card"><h2>扫码洗衣 '
-    + badge(U_HAS_ORD0 ? '订单处理中'
-            : (U.result ? (U.result.createOrderEnabled?'空闲可用':'使用中') : '未读取'),
-            U_HAS_ORD0 ? 'warn'
-            : (U.result ? (U.result.createOrderEnabled?'on':'warn') : '')) + '</h2>';
-  h += '<button class="bigscan" id="uScanPick">'
-    + '<span class="bigscan-i">&#9635;</span>'
-    + '<span class="bigscan-t">扫码 / 相册</span></button>';
-  h += '<div class="row" style="margin-top:8px">'
-    + '<input id="uQr" placeholder="也可以直接贴设备号"'
-    + (U.result ? ' value="'+esc(U.result.deviceId||'')+'"' : '') + '>'
-    + '<button class="btn-b" id="uResolve">读取</button></div>';
-  h += '<div class="sub">设备号不限格式, 贴进去原样送到服务器去认.</div>';
-  /* 设备信息块只在"选机器/扫码"阶段短暂存在. 一旦有活跃订单(未支付到运行中),
-     这块必须消失 -- 否则订单结束后会残留上一台的"机器名/设备号/机型/状态".
-     U_HAS_ORD 由 UO.items 或 U.orderId 决定, 渲染时实时算. */
-  var U_HAS_ORD = (UO.items || []).length > 0 || !!U.orderId;
-  if(U.result && !U_HAS_ORD){
-    h += kv('机器名', U.result.deviceName || U.result.name || '-');
-    h += kv('设备号', U.result.deviceId || '-');
-    h += kv('机型', U.result.deviceTypeName || (Number(U.result.deviceTypeId)===10?'烘干机':'滚筒'));
-    h += kv('店铺', U.result.storeName || (U.result.store && U.result.store.name) || '-');
-    h += kv('状态', U.result.createOrderEnabled?'空闲可用':'正在使用',
-            U.result.createOrderEnabled?'ok':'bad');
-  }
-  h += '</div>';
-
-  /* ===== 3. 附近机器: 紧贴扫码, 不扫码也能用 ===== */
-  h += '<div class="card"><h2>附近的洗衣机 '
-    + badge(FM.cur ? '已进建筑' : (FM.busy ? '查询中'
-            : (FM.stores.length ? (FM.stores.length + ' 个建筑') : (FM.loc ? '待查询' : '未定位'))),
-            FM.cur ? 'on' : (FM.stores.length ? 'on' : (FM.busy ? 'warn' : ''))) + '</h2>';
-  if(FM.cur){
-    var cn = FM.cur.name || FM.cur.storeName || '当前建筑';
-    var cf = FM.devs.filter(fmDevFree).length;
-    h += '<div class="sub">当前: <b>' + esc(cn) + '</b> / '
-      + (FM.devsBusy ? '读取机器中' : (cf + ' 台空闲')) + '</div>';
-    h += '<div class="row" style="margin-top:9px">'
-      + '<button class="btn-b btn-f" id="uOpenFind">预约机器</button></div>';
-  }else{
-    h += '<div class="sub">' + (FM.loc
-      ? ('已定位 ' + FM.loc.lat.toFixed(4) + ', ' + FM.loc.lng.toFixed(4)
-         + (FM.stores.length ? (' / 附近 ' + FM.stores.length + ' 栋楼') : ' / 正在查附近建筑'))
-      : (FM.locErr ? ('定位失败: ' + FM.locErr) : '进页面会自动定位一次')) + '</div>';
-    h += '<div class="row" style="margin-top:9px">'
-      + '<button class="btn-p btn-f" id="uOpenFind">'
-      + (FM.loc ? '预约机器(附近)' : '定位并预约机器') + '</button></div>';
-  }
-  h += '<div class="sub">自动定位 -> 最近的建筑 -> 那栋楼里的机器, 选空闲的直接下单.</div>';
-  h += '</div>';
-
-  /* ===== 4. 当前订单(双卡共存: 洗衣一张 + 洗鞋一张, 互不顶走) ===== */
+function uOrdCardsOf(){
   var cards = [];
   /* 事实驱动: 从订单列表(running+history 合并)取所有未完结单, 每单一卡.
      不再依赖 U.curOrd 内存态 -- 服务端有什么就显示什么. */
@@ -7574,18 +8616,17 @@ function pageLaundry(host){
     fbC.st = '读取中'; fbC.stNum = NaN; fbC.payLeft = null; fbC.remain = null;
     cards.push({ title:'当前订单', LO:fbC, oid:U.orderId });
   }
-  if(!signed){
-    h += '<div class="card"><h2>当前订单</h2><div class="empty">先登录 U净</div></div>';
-  }else if(!cards.length){
-    h += '<div class="card"><h2>当前订单</h2><div class="empty">还没有下单. 从上面选一栋楼的空机器, 或者扫码.</div>';
-    h += '<div class="sub">U净 没有钱包也不预充值: 下单时按机型与水温室温实时计价, 下单即扣款.</div></div>';
-  }
-  for(var ci2 = 0; ci2 < cards.length; ci2++){
-    h += '<div class="card"><h2>' + esc(cards[ci2].title) + ' '
-      + badge(cards[ci2].LO.st || '进行中',
-              /完成|结束|finish|done|end/i.test(String(cards[ci2].LO.st||'')) ? 'ok' : 'warn')
+  return cards;
+}
+
+/* 单张当前订单卡的 HTML. card = {title, LO, oid} */
+function uOrdCardHtml(card){
+  var h = '';
+    h += '<div class="card"><h2>' + esc(card.title) + ' '
+      + badge(card.LO.st || '进行中',
+              /完成|结束|finish|done|end/i.test(String(card.LO.st||'')) ? 'ok' : 'warn')
       + '</h2>';
-    var LO = cards[ci2].LO;
+    var LO = card.LO;
     var doneO = /完成|结束|finish|done|end/i.test(String(LO.st || ''));
     var stN = Number(LO.stNum);
     var unpaidO = (stN === 10);
@@ -7599,9 +8640,9 @@ function pageLaundry(host){
     /* 双卡共存: 洗衣(2/滚筒/波轮)与洗鞋(4)各自保留一张当前订单卡, 互不覆盖.
        U.curOrd = { wash:{orderId,lastOrder}, shoe:{orderId,lastOrder} } 由
        uLoadOrders 恢复与 runOrder 写入; 这里渲染当前类型对应的卡. */
-    /* 卡类型由 cards[ci2].title 决定(洗衣/洗鞋), LO.deviceTypeId 仅用于展示. */
+    /* 卡类型由 card.title 决定(洗衣/洗鞋), LO.deviceTypeId 仅用于展示. */
     /* 正版订单页大字: "N号机型". 机器号一眼可见(用户点名要大字). */
-    var oidC = String(cards[ci2].oid || '');
+    var oidC = String(card.oid || '');
     /* 机器号以本单 detail 为准; 扫码态只在本单缺字段时兜底, 避免洗鞋卡显示成洗衣那台 */
     var devBig = LO.devNo || LO.dev || (U.result && (U.result.deviceNo || U.result.devNo)) || '-';
     h += '<div style="font-size:26px;font-weight:800;letter-spacing:.5px;margin:2px 0 8px">'
@@ -7703,6 +8744,57 @@ function pageLaundry(host){
       h += '<div class="sub">状态以服务端为准, 这一步没有可用操作.</div>';
     }
     h += '</div>'; /* 每张当前订单卡独立收口 */
+  return h;
+}
+
+/* 全部当前订单卡. 没登录/没单时返回空串, 由调用方决定画什么空态. */
+function uOrdCardsHtml(){
+  if(!U.token) return '';
+  var cs = uOrdCardsOf();
+  if(!cs.length) return '';
+  var out = '';
+  for(var i = 0; i < cs.length; i++) out += uOrdCardHtml(cs[i]);
+  return out;
+}
+
+/* ============================================================
+   订单页: 扫码与预约都进这一页, 洗衣页不再内联展开.
+
+   为什么单独成页(用户 m03507): 原来下单区与当前订单卡都挤在洗衣页里,
+   扫码后要往下滚好几屏才看得到下单按钮, 订单状态又夹在扫码卡与历史卡之间,
+   页面越长越难找. 收银台风格的订单页把所有与这笔单有关的操作收在同一个屏里.
+   ============================================================ */
+function pageUOrder(host){
+  var signed = !!U.token;
+  var h = '';
+  /* 机器摘要: 只在有选中机器时出现, 没选就整块不画 */
+  if(U.result){
+    var devO = (U.result.deviceNo || U.result.devName || U.result.deviceName || '-');
+    h += '<div class="card"><h2>本次机器 '
+      + badge(U.result.createOrderEnabled === false ? '使用中' : '空闲可用',
+              U.result.createOrderEnabled === false ? 'warn' : 'on') + '</h2>';
+    h += '<div style="display:flex;align-items:baseline;gap:10px;margin:2px 0 8px">'
+      + '<span style="font-size:26px;font-weight:800;letter-spacing:.5px">'
+      + esc(String(devO)) + (String(devO) !== '-' ? ' 号机' : '') + '</span>'
+      + '<span style="font-size:12.5px;color:var(--fg-muted)">'
+      + esc(U.result.deviceTypeName || '') + '</span></div>';
+    h += kv('店铺', U.result.storeName || U_PROG.storeName || '-');
+    if(U.result.reserveMode) h += kv('方式', '预约分配(付款后服务端指机)');
+    h += '</div>';
+  }else if(!(UO.items || []).length && !U.orderId){
+    h += '<div class="card"><h2>订单</h2>'
+      + '<div class="empty">还没有机器. 回洗衣页扫码, 或者从"预约机器"里挑一台.</div></div>';
+  }
+
+  /* ===== 4. 当前订单(洗衣一张 + 洗鞋一张, 与洗衣页同一份实现) ===== */
+  var ordH = uOrdCardsHtml();
+  if(ordH){
+    h += ordH;
+  }else if(!signed){
+    h += '<div class="card"><h2>当前订单</h2><div class="empty">先登录 U净</div></div>';
+  }else{
+    h += '<div class="card"><h2>当前订单</h2><div class="empty">还没有下单. 从上面选一栋楼的空机器, 或者扫码.</div>';
+    h += '<div class="sub">U净 没有钱包也不预充值: 下单时按机型与水温室温实时计价, 下单即扣款.</div></div>';
   }
 
 /* ---- 不再画"选择机器" ----
@@ -7806,13 +8898,196 @@ function pageLaundry(host){
           + '<div class="sub" style="color:var(--danger)">' + esc(U_PROG.blockInfo.body) + '</div>';
       }
       h += '<div class="row"><button class="btn-p btn-f" id="uOrderBtn"'
-        + (U_PROG.blockOrder ? ' disabled style="opacity:.5"' : '') + '>下单</button></div>';
+        + (U_PROG.blockOrder ? ' disabled style="opacity:.5"' : '') + '>'+((U_ORDER_TOP && (UO.open || {})[U_ORDER_TOP]) ? '去支付' : '下单')+'</button></div>';
       h += '<div class="sub">U净 下单即扣款, 没有单独的钱包也不预充值; '
         + '价格由服务端按机型与选项实时计算.</div>';
       if(U_PROG.warmTip) h += '<div class="sub" style="white-space:pre-line">' + esc(U_PROG.warmTip) + '</div>';
     }
     h += '</div>';
   }
+
+
+  host.innerHTML = h;
+  bindUOrder(host);
+}
+
+
+/* 订单页的按钮绑定. 与洗衣页共用同一批处理函数(uPayById/uStartById/uCancel/...),
+   只是宿主节点从洗衣页换成了订单页, 所以单独抽一个绑定函数, 避免两处各写一份. */
+function bindUOrder(host){
+  var el;
+  uInitSel();
+  if((el=$('uOpenOrder'))) el.onclick = function(){
+    pushPage({ title:'订单', sub:(U.result ? (U.result.storeName || '') : 'U净洗衣'), render:pageUOrder });
+  };
+  if((el=$('uOrderBtn'))) el.onclick = uOrderConfirm;
+  if((el=$('uProgBtn'))) el.onclick = function(){ U_PROG.loaded = false; uLoadProgram(); };
+  if((el=$('uProgMore'))) el.onclick = function(){ U_PROG.expand = true; paint(); };
+  if((el=$('uDevRefresh'))) el.onclick = function(){
+    if(!U.result){ toast('先选一台机器'); return; }
+    uRefreshDev();
+  };
+  Array.prototype.forEach.call(host.querySelectorAll('[data-wm]'), function(n){
+    n.onclick = function(){ uPickModel(n.getAttribute('data-wm')); };
+  });
+  ['uDet','uDis','uDryT'].forEach(function(id){
+    var n = $(id);
+    if(n) n.onchange = function(){ uKeepDet(); uReadSel(); var s2 = $('uSum');
+      if(s2) s2.textContent = uProgName() + ' / 合计 ' + uYuan(uTotalFen()) + ' 元';
+      log('选项变更, 合计 ' + uYuan(uTotalFen()) + ' 元', 'w'); };
+  });
+  Array.prototype.forEach.call(host.querySelectorAll('select[data-uap]'), function(n){
+    n.onchange = function(){ uApplyKeep(); uReadSel(); var s2 = $('uSum');
+      if(s2) s2.textContent = uProgName() + ' / 合计 ' + uYuan(uTotalFen()) + ' 元';
+      log('附加项 ' + n.getAttribute('data-uap') + '=' + n.value
+        + ', 合计 ' + uYuan(uTotalFen()) + ' 元', 'w'); };
+  });
+  Array.prototype.forEach.call(host.querySelectorAll('[data-upoll]'), function(n){
+    n.onclick = function(){ uTickById(n.getAttribute('data-upoll')); };
+  });
+  Array.prototype.forEach.call(host.querySelectorAll('[data-upay]'), function(n){
+    n.onclick = function(){ uPayById(n.getAttribute('data-upay')); };
+  });
+  Array.prototype.forEach.call(host.querySelectorAll('[data-ustart]'), function(n){
+    n.onclick = function(){ uStartById(n.getAttribute('data-ustart')); };
+  });
+  Array.prototype.forEach.call(host.querySelectorAll('[data-ualarm]'), function(n){
+    n.onclick = function(){ uAlarmById(n.getAttribute('data-ualarm')); };
+  });
+  Array.prototype.forEach.call(host.querySelectorAll('[data-ucancel]'), function(n){
+    n.onclick = function(){ uCancel(n.getAttribute('data-ucancel')); };
+  });
+  Array.prototype.forEach.call(host.querySelectorAll('[data-ustop]'), function(n){
+    n.onclick = function(){ uStopById(n.getAttribute('data-ustop')); };
+  });
+  Array.prototype.forEach.call(host.querySelectorAll('[data-ucopy]'), function(n){
+    n.onclick = function(){
+      var v = n.getAttribute('data-ucopy') || '';
+      try{
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(v);
+        }else{
+          var ta = document.createElement('textarea');
+          ta.value = v; document.body.appendChild(ta); ta.select();
+          document.execCommand('copy'); document.body.removeChild(ta);
+        }
+        toast('已复制');
+      }catch(e){ toast('复制失败: ' + e.message); }
+    };
+  });
+  Array.prototype.forEach.call(host.querySelectorAll('[data-ucpaid]'), function(n){
+    n.onclick = function(){ uSyncPaid(n.getAttribute('data-ucpaid')); };
+  });
+  Array.prototype.forEach.call(host.querySelectorAll('[data-ucont]'), function(n){
+    n.onclick = function(){ uContinueById(n.getAttribute('data-ucont')); };
+  });
+}
+
+/* ============================================================
+   6.9 洗衣页 (v6 重构)
+   结构: 账号 -> 当前订单(实时) -> 找附近机器 -> 扫码 -> 选机器 -> 下单 -> 历史订单
+   历史订单单独一页, 不挤在主页
+   ============================================================ */
+function pageLaundry(host){
+  var signed = !!U.token;
+  var saved = (ACC.laundry || []).length;
+  var h = '';
+
+  /* ===== 1. 账号: 单独放最上面, 与取水页一致 ===== */
+  h += '<div class="card"><h2>U净账号 '
+    + badge(signed?(U.phone||'已登录'):'未登录', signed?'on':'')+'</h2>';
+  if(signed){
+    h += '<div class="row"><button class="btn-f" id="uSwitch">切换账号'+(saved>1?(' ('+saved+')'):'')+'</button>'
+      + '<button class="btn-r" id="uOut">退出</button></div>';
+    h += '<div class="sub">只用于洗衣, 与胖乖完全独立, 余额与积分不互通.</div>';
+  }else{
+    if(saved){
+      h += '<div class="row"><button class="btn-b btn-f" id="uSaved">已保存 '+saved+' 个账号, 点这里直接进</button></div>';
+    }
+    h += '<div class="row"><input id="uPhone" placeholder="手机号" inputmode="numeric"></div>';
+    h += '<div class="row"><input id="uCode" placeholder="短信验证码" inputmode="numeric">'
+      + '<button class="btn-w" id="uSend">发验证码</button></div>';
+    h += '<div class="row"><button class="btn-p btn-f" id="uIn">登录</button></div>';
+    h += '<div class="sub">U净 账号体系独立, 需用你自己的手机号收码.</div>';
+  }
+  h += '</div>';
+
+
+  /* ===== 2. 扫码: 账号下面第一个, 最主要的操作入口 ===== */
+  var U_HAS_ORD0 = (UO.items || []).length > 0 || !!U.orderId;
+  h += '<div class="card"><h2>扫码洗衣 '
+    + badge(U_HAS_ORD0 ? '订单处理中'
+            : (U.result ? (U.result.createOrderEnabled?'空闲可用':'使用中') : '未读取'),
+            U_HAS_ORD0 ? 'warn'
+            : (U.result ? (U.result.createOrderEnabled?'on':'warn') : '')) + '</h2>';
+  h += '<button class="bigscan" id="uScanPick">'
+    + '<span class="bigscan-i">&#9635;</span>'
+    + '<span class="bigscan-t">扫码 / 相册</span></button>';
+  h += '<div class="row" style="margin-top:8px">'
+    + '<input id="uQr" placeholder="也可以直接贴设备号"'
+    + (U.result ? ' value="'+esc(U.result.deviceId||'')+'"' : '') + '>'
+    + '<button class="btn-b" id="uResolve">读取</button></div>';
+  h += '<div class="sub">设备号不限格式, 贴进去原样送到服务器去认.</div>';
+  /* 设备信息块只在"选机器/扫码"阶段短暂存在. 一旦有活跃订单(未支付到运行中),
+     这块必须消失 -- 否则订单结束后会残留上一台的"机器名/设备号/机型/状态".
+     U_HAS_ORD 由 UO.items 或 U.orderId 决定, 渲染时实时算. */
+  var U_HAS_ORD = (UO.items || []).length > 0 || !!U.orderId;
+  if(U.result && !U_HAS_ORD){
+    h += kv('机器名', U.result.deviceName || U.result.name || '-');
+    h += kv('设备号', U.result.deviceId || '-');
+    h += kv('机型', U.result.deviceTypeName || (Number(U.result.deviceTypeId)===10?'烘干机':'滚筒'));
+    h += kv('店铺', U.result.storeName || (U.result.store && U.result.store.name) || '-');
+    h += kv('状态', U.result.createOrderEnabled?'空闲可用':'正在使用',
+            U.result.createOrderEnabled?'ok':'bad');
+  }
+  h += '</div>';
+
+  /* ===== 2.9 当前订单(实时): 用户明确要求放在"附近的洗衣机"卡片上面 =====
+     有单才画, 没单不占位置. 内容与订单页完全一致(uOrdCardsHtml 唯一实现),
+     未支付(状态 10)的单同样展示并带"去支付"与自动取消倒计时. */
+  var U_ORD_NOW = uOrdCardsHtml();
+  if(U_ORD_NOW){
+    h += U_ORD_NOW;
+  }
+
+  /* ===== 3. 附近机器: 紧贴扫码, 不扫码也能用 ===== */
+  h += '<div class="card"><h2>附近的洗衣机 '
+    + badge(FM.cur ? '已进建筑' : (FM.busy ? '查询中'
+            : (FM.stores.length ? (FM.stores.length + ' 个建筑') : (FM.loc ? '待查询' : '未定位'))),
+            FM.cur ? 'on' : (FM.stores.length ? 'on' : (FM.busy ? 'warn' : ''))) + '</h2>';
+  if(FM.cur){
+    var cn = FM.cur.name || FM.cur.storeName || '当前建筑';
+    var cf = FM.devs.filter(fmDevFree).length;
+    h += '<div class="sub">当前: <b>' + esc(cn) + '</b> / '
+      + (FM.devsBusy ? '读取机器中' : (cf + ' 台空闲')) + '</div>';
+    h += '<div class="row" style="margin-top:9px">'
+      + '<button class="btn-b btn-f" id="uOpenFind">预约机器</button></div>';
+  }else{
+    h += '<div class="sub">' + (FM.loc
+      ? ('已定位 ' + FM.loc.lat.toFixed(4) + ', ' + FM.loc.lng.toFixed(4)
+         + (FM.stores.length ? (' / 附近 ' + FM.stores.length + ' 栋楼') : ' / 正在查附近建筑'))
+      : (FM.locErr ? ('定位失败: ' + FM.locErr) : '进页面会自动定位一次')) + '</div>';
+    h += '<div class="row" style="margin-top:9px">'
+      + '<button class="btn-p btn-f" id="uOpenFind">'
+      + (FM.loc ? '预约机器(附近)' : '定位并预约机器') + '</button></div>';
+  }
+  h += '<div class="sub">自动定位 -> 最近的建筑 -> 那栋楼里的机器, 选空闲的直接下单.</div>';
+  h += '</div>';
+
+  /* ===== 4. 订单入口: 订单卡与下单区都搬到独立订单页, 主页只留入口 ===== */
+  var U_HAS_ORD2 = (UO.items || []).length > 0 || !!U.orderId;
+  h += '<div class="card"><h2>我的订单 '
+    + badge(U_HAS_ORD2 ? ('进行中 ' + (UO.items || []).length + ' 条')
+            : (U.result ? '待下单' : '暂无'),
+            U_HAS_ORD2 ? 'warn' : (U.result ? 'on' : '')) + '</h2>';
+  h += '<div class="sub">' + (U.result
+      ? ('当前机器: <b>' + esc(String(U.result.deviceNo || U.result.devName || U.result.deviceName || '-'))
+         + '</b> / ' + esc(U.result.storeName || ''))
+      : '扫码或预约机器之后, 下单与订单详情都在订单页里.') + '</div>';
+  h += '<div class="row" style="margin-top:9px"><button class="btn-p btn-f" id="uOpenOrder">'
+    + (U.result ? '进入订单页 · 选程序下单' : '打开订单页') + '</button></div>';
+  h += '<div class="sub">扫码与预约都会自动打开这一页; 支付, 启动, 取消与倒计时也都在里面.</div>';
+  h += '</div>';
 
   /* ---- 历史订单 ---- */
   if(signed){
@@ -7854,12 +9129,12 @@ function pageLaundry(host){
   });
   ['uDet','uDis','uDryT'].forEach(function(id){
     var n = $(id);
-    if(n) n.onchange = function(){ uReadSel(); var s2 = $('uSum');
+    if(n) n.onchange = function(){ uKeepDet(); uReadSel();; var s2 = $('uSum');
       if(s2) s2.textContent = uProgName() + ' / 合计 ' + uYuan(uTotalFen()) + ' 元';
       log('选项变更, 合计 ' + uYuan(uTotalFen()) + ' 元', 'w'); };
   });
   Array.prototype.forEach.call(host.querySelectorAll('select[data-uap]'), function(n){
-    n.onchange = function(){ uReadSel(); var s2 = $('uSum');
+    n.onchange = function(){ uApplyKeep(); uReadSel();; var s2 = $('uSum');
       if(s2) s2.textContent = uProgName() + ' / 合计 ' + uYuan(uTotalFen()) + ' 元';
       log('附加项 ' + n.getAttribute('data-uap') + '=' + n.value
         + ', 合计 ' + uYuan(uTotalFen()) + ' 元', 'w'); };
@@ -7911,6 +9186,9 @@ function pageLaundry(host){
   fmAutoPoll();
   if((el=$('uOrdAll'))) el.onclick = function(){
     pushPage({ title:'历史洗衣订单', sub:'U净 orders/history', render:pageLaundryOrders });
+  };
+  if((el=$('uOpenOrder'))) el.onclick = function(){
+    pushPage({ title:'订单', sub:(U.result ? (U.result.storeName || '') : 'U净洗衣'), render:pageUOrder });
   };
   if((el=$('uOrdRefresh'))) el.onclick = function(){ UO.loaded = false; uLoadOrders(); };
 
@@ -8297,6 +9575,11 @@ function foldCard(id, title, body, open){
     + '<div class="fold-b'+(open?'':' hidef')+'" data-foldb="'+id+'">'+body+'</div></div>';
 }
 function foldWire(host){
+  /* 第 212 轮: 折叠范围收敛(用户: 普通卡不是折叠卡, 三角全撤).
+     1) foldCard 大卡(data-foldh)走原逻辑(max-height 动画 + 2x 三角).
+     2) subfold(data-sfh)保留第 211 轮补的点击绑定, 状态记 'sf:'+id.
+     3) 普通 .card 不再有三角也不再可点. */
+  fxNormalize();
   Array.prototype.forEach.call(host.querySelectorAll('[data-foldh]'), function(n){
     n.onclick = function(){
       var card = n.parentElement, b = card.querySelector('.fold-b');
@@ -8305,6 +9588,16 @@ function foldWire(host){
       b.classList.toggle('hidef', closed);
       fxNormalize(); ACC.fx.folds[n.getAttribute('data-foldh')] = !closed; fxSave();
     };
+  });
+  Array.prototype.forEach.call(host.querySelectorAll('.subfold>.sf-h'), function(n){
+    var sf = n.parentElement;
+    var key = 'sf:' + (sf.getAttribute('data-sf') || n.textContent.slice(0,8));
+    n.onclick = function(){
+      sf.classList.toggle('closed');
+      var closed = sf.classList.contains('closed');
+      fxNormalize(); ACC.fx.folds[key] = !closed; fxSave();
+    };
+    if(ACC.fx.folds[key] === false) sf.classList.add('closed');
   });
   /* 恢复记忆的折叠态 */
   fxNormalize();
@@ -8369,14 +9662,8 @@ function pageSettings(host){
   pb += '<div class="sub">动画播完=冷启动完整播一遍注水(约 1.2s); 加载完进=页面就绪立即进; 系统=热进快、冷进播完.</div>';
   pb += '</div></div>';
   h += foldCard('perso', '个性化', pb, ACC.fx.folds.perso === true);
-  h += '<div class="card"><h2>提醒 '
-    + badge(AL.list.length + ' 条', AL.list.length ? 'on' : '') + '</h2>';
-  h += '<div class="row"><button class="btn-p btn-f" id="setAlarm">闹钟管理</button></div>';
-  h += '<div class="sub">两条通道一起登记: 系统时钟 App(厂商闹钟, 系统托管, 本应用被后台清理也照响) + 应用内前台服务(响铃 + 震动 + 全屏界面). 订单在跑时页面会按账单里的完成时刻自动建, 同一单不会重复建.</div>';
-  h += '</div>';
-
   h += '<div class="card"><h2>更新 '
-    + badge(APP_VER) + '</h2>';
+    + '<span class="pill" id="setUpdPill">' + esc(APP_VER) + '</span></h2>';
   h += kv('当前版本', APP_VER);
   h += kv('上次检查', UPD.lastCheck ? ts2s(UPD.lastCheck) : '没查过');
   /* 设置页这张卡不重复实现状态机, 直接复用 updCheckLabel,
@@ -8384,8 +9671,18 @@ function pageSettings(host){
   h += '<div class="row" style="margin-top:9px">'
     + '<button class="btn-b btn-f" id="setUpdate"'
     + (UPD.state === 'checking' ? ' disabled style="opacity:.6"' : '')
-    + '>' + esc(updCheckLabel()) + '</button></div>';
+    + '>' + esc(updSetBtnLabel()) + '</button></div>';
+  /* 卡片里必须有一句话把"到底有没有新版"说清楚. 老版只在按钮文字里体现,
+     按钮一被底栏挡住/一没注意, 用户看到的就是"更新 1.2.0 / 当前版本 1.2.0",
+     然后判定"根本没效果". 这行文字由 updPaintSetTip() 维护. */
+  h += '<div class="sub" id="setUpdateTip">' + esc(updSetTip()) + '</div>';
   h += '<div class="sub">镜像源优先, 直连兜底. 下载完交给系统安装器, 不做静默安装.</div>';
+  h += '</div>';
+
+  h += '<div class="card"><h2>提醒 '
+    + badge(AL.list.length + ' 条', AL.list.length ? 'on' : '') + '</h2>';
+  h += '<div class="row"><button class="btn-p btn-f" id="setAlarm">闹钟管理</button></div>';
+  h += '<div class="sub">两条通道一起登记: 系统时钟 App(厂商闹钟, 系统托管, 本应用被后台清理也照响) + 应用内前台服务(响铃 + 震动 + 全屏界面). 订单在跑时页面会按账单里的完成时刻自动建, 同一单不会重复建.</div>';
   h += '</div>';
 
   h += '<div class="card"><h2>赞赏 <span class="pill">自愿</span></h2>';
@@ -8446,8 +9743,10 @@ function pageSettings(host){
 
   h += '<div class="card"><h2>数据</h2>';
   h += kv('已存账号', (nw+nl)+' 个');
-  h += kv('日志条数', LOG.length+' 条 (持久化'
-    + (LOG_PERSIST ? '开' : '关') + ')');
+  /* 这一行是实时的: log() 会原地改它, 不整页重绘. 否则启动时写的十几条日志会让
+     卡片数字停在进页面那一刻, 与清空日志弹窗读到的 LOG.length 对不上. */
+  h += '<div class="kv"><span>' + esc('日志条数') + '</span><b id="setLogCount">'
+    + esc(LOG.length + ' 条 (持久化' + (LOG_PERSIST ? '开' : '关') + ')') + '</b></div>';
   h += '<div class="row" style="margin-top:9px">'
     + '<button class="btn-b btn-f" id="setLogPersist">日志持久化: '
     + (LOG_PERSIST ? '开' : '关') + '</button>'
@@ -8456,8 +9755,8 @@ function pageSettings(host){
     + '日志页随时可查; "不留持久化"只保留本次会话, 关 app 即清; '
     + '"清空日志"删掉全部已存日志, 不影响其他数据.</div>';
   h += '<div class="row" style="margin-top:9px">'
-    + '<button class="btn-r btn-f" id="setDump">立即备份</button>'
-    + '<button class="btn-r btn-f" id="setRestore">从备份恢复</button></div>';
+    + '<button class="btn-b btn-f" id="setDump">立即备份</button>'
+    + '<button class="btn-b btn-f" id="setRestore">从备份恢复</button></div>';
   var dmode = dumpModeNow();
   if(dmode === 'file'){
     h += '<div class="sub">备份写进手机 下载/hz-water-backup.json. '
@@ -8601,6 +9900,8 @@ function pageSettings(host){
     pushPage({ title:'权限', sub:'逐项授权, 可跳过', render:pagePerms });
   };
   if($('setUpdate')) $('setUpdate').onclick = function(){
+    /* 设置卡是摘要 + 入口, 所有具体动作(下载/安装/删除/换源)都在更新页里做.
+       文案由 updSetBtnLabel() 单独给, 说的是"去更新页做什么", 与这里的行为一致. */
     pushPage({ title:'更新', sub:'镜像优先, 直连兜底', render:pageUpdate });
   };
   if($('setReward')) $('setReward').onclick = showReward;
@@ -8678,6 +9979,11 @@ function pageSettings(host){
       toast('已清空');
     });
   };
+
+  /* 站到设置页就自动看一眼远端版本: 用户抱怨"打开设置只看到更新 1.2.0 /
+     当前版本 1.2.0, 根本不知道有没有新版". 有 60 秒节流, 来回切页不会刷请求. */
+  updAutoCheckOnce();
+  updPaintSetCard();
 }
 
 function hzMediaPick(src, host){
